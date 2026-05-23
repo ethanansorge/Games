@@ -330,20 +330,24 @@
     }
 
     #place-close {
-      width: 100%;
-      max-width: 288px;
-      padding: 10px;
-      background: #111133;
-      border: 1px solid #335;
-      border-radius: 6px;
-      color: #6666aa;
-      font-size: 0.75rem;
-      font-family: 'Courier New', monospace;
-      letter-spacing: 2px;
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      width: 40px;
+      height: 40px;
+      background: #330000;
+      border: 2px solid #cc2222;
+      border-radius: 50%;
+      color: #ff4444;
+      font-size: 1.2rem;
+      line-height: 1;
       cursor: pointer;
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 160;
     }
-    #place-close:active { background: #1a1a44; }
+    #place-close:active { background: #550000; border-color: #ff4444; }
 
     /* ── Game over overlay ── */
     #gameover-overlay {
@@ -455,7 +459,7 @@
     <div id="place-lamp-info"></div>
     <div id="place-hint">Tap any open floor space</div>
     <canvas id="floor-canvas" width="288" height="288"></canvas>
-    <button id="place-close" onclick="closePlacementView()">BACK TO AUCTION</button>
+    <button id="place-close" onclick="closePlacementView()">&#x2715;</button>
   </div>
 
   <!-- Game over overlay -->
@@ -868,7 +872,6 @@
       document.getElementById('place-lamp-info').textContent =
         `${lampToPlace.size} ${lampToPlace.color.name} ${lampToPlace.shape} lamp`;
       document.getElementById('place-hint').textContent = 'Tap any open floor space';
-      document.getElementById('place-close').textContent = 'BACK TO AUCTION';
       document.getElementById('placement-overlay').classList.add('show');
       renderFloorPlan();
     }
@@ -878,8 +881,7 @@
       document.getElementById('place-title').textContent = 'YOUR APARTMENT';
       document.getElementById('place-lamp-info').textContent =
         `${lampsWon} lamp${lampsWon !== 1 ? 's' : ''} placed`;
-      document.getElementById('place-hint').textContent = 'Tap anywhere to close';
-      document.getElementById('place-close').textContent = 'CLOSE';
+      document.getElementById('place-hint').textContent = 'Tap a lamp to inspect  •  X to close';
       document.getElementById('placement-overlay').classList.add('show');
       renderFloorPlan();
     }
