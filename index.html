@@ -837,234 +837,131 @@
         const { x, y } = ip(col, row);
         const [r, g, b] = lamp.color.shade;
         const cx = x;
-        const cy = y + TH / 2;   // screen centre of tile diamond
-        const mc = `rgb(${r},${g},${b})`;
-        const lc = `rgb(${Math.min(255,r+90)},${Math.min(255,g+80)},${Math.min(255,b+55)})`;
+        const cy = y + TH / 2;  // tile diamond centre
+        const mc  = `rgb(${r},${g},${b})`;
+        const mcl = `rgb(${Math.min(255,r+105)},${Math.min(255,g+95)},${Math.min(255,b+65)})`;
+        const mcd = `rgb(${Math.round(r*0.45)},${Math.round(g*0.45)},${Math.round(b*0.45)})`;
 
-        // Light pool on floor (all types)
-        const poolR = TW * 0.38;
-        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, poolR);
-        grd.addColorStop(0, `rgba(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+40)},0.55)`);
+        // Floor light pool
+        const pR = TW * 0.46;
+        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, pR);
+        grd.addColorStop(0, `rgba(${Math.min(255,r+90)},${Math.min(255,g+90)},${Math.min(255,b+50)},0.68)`);
         grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
         ctx.fillStyle = grd;
         ctx.beginPath();
-        ctx.ellipse(cx, cy, poolR, poolR * 0.45, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, cy, pR, pR * 0.5, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        const fullH = WH * 0.74; // floor lamp reaches ~74 % of wall height
+        // Isometric floor-plane ellipse (represents a horizontal circle)
+        const isoE = (ex, ey, ew, fill) => {
+          ctx.beginPath();
+          ctx.ellipse(ex, ey, ew, ew * 0.5, 0, 0, Math.PI * 2);
+          ctx.fillStyle = fill; ctx.fill();
+        };
+
+        // Draw a lampshade: trapezoid body (narrow top → wide bottom) + iso-ellipse
+        // rim faces to give 3-D "can" appearance.
+        //   sx,sy  = top-centre of shade   topW = half-width at top (closed/narrow end)
+        //   botW   = half-width at bottom (open/bright end)   bH = body height (downward)
+        const drawShade = (sx, sy, topW, botW, bH, glowR) => {
+          ctx.save();
+          ctx.shadowColor = mc; ctx.shadowBlur = glowR;
+          // Trapezoid body
+          ctx.beginPath();
+          ctx.moveTo(sx - topW, sy);
+          ctx.lineTo(sx + topW, sy);
+          ctx.lineTo(sx + botW, sy + bH);
+          ctx.lineTo(sx - botW, sy + bH);
+          ctx.closePath();
+          ctx.fillStyle = mc; ctx.fill();
+          ctx.shadowBlur = 0;
+          // Top face: dark closed end
+          isoE(sx, sy,      topW * 0.95, mcd);
+          // Bottom rim: bright open end (emits light)
+          isoE(sx, sy + bH, botW,        mcl);
+          ctx.restore();
+        };
+
+        const pw = Math.max(1.5, TW * 0.060); // pole / arm stroke width
         ctx.save();
+        ctx.strokeStyle = '#aaa098';
 
         if (lamp.shape === 'floor') {
-          const h  = fullH;
-          const sw = TW * 0.24;  // shade half-width
-          const sh = TW * 0.12;  // shade half-height
-          // Foot disc
-          ctx.fillStyle = '#686868';
-          ctx.beginPath();
-          ctx.ellipse(cx, cy, TW*0.07, TW*0.035, 0, 0, Math.PI*2);
-          ctx.fill();
-          // Pole
-          ctx.strokeStyle = '#b8b0a0';
-          ctx.lineWidth = Math.max(1, TW * 0.052);
-          ctx.beginPath();
-          ctx.moveTo(cx, cy - TW*0.025);
-          ctx.lineTo(cx, cy - h + sh);
-          ctx.stroke();
-          // Inverted trapezoid shade
-          ctx.shadowColor = mc;
-          ctx.shadowBlur  = sw * 2.2;
-          ctx.beginPath();
-          ctx.moveTo(cx - sw*0.42, cy - h - sh*0.55);
-          ctx.lineTo(cx + sw*0.42, cy - h - sh*0.55);
-          ctx.lineTo(cx + sw,      cy - h + sh);
-          ctx.lineTo(cx - sw,      cy - h + sh);
-          ctx.closePath();
-          ctx.fillStyle = mc;
-          ctx.fill();
-          // Shade inner highlight
-          ctx.shadowBlur = 0;
-          ctx.beginPath();
-          ctx.moveTo(cx - sw*0.32, cy - h - sh*0.45);
-          ctx.lineTo(cx + sw*0.32, cy - h - sh*0.45);
-          ctx.lineTo(cx + sw*0.72, cy - h + sh*0.75);
-          ctx.lineTo(cx - sw*0.72, cy - h + sh*0.75);
-          ctx.closePath();
-          ctx.fillStyle = 'rgba(255,252,215,0.22)';
-          ctx.fill();
-          // Bulb
-          ctx.beginPath();
-          ctx.arc(cx, cy - h + sh*0.7, Math.max(1.5, TW*0.048), 0, Math.PI*2);
-          ctx.fillStyle = 'rgba(255,250,200,0.93)';
-          ctx.fill();
+          // Tall pole, wide inverted shade at top
+          const h   = WH * 0.82;
+          const bH  = TW * 0.16;   // shade body height
+          const botW = TW * 0.42;  // bottom (opening) half-width
+          const topW = TW * 0.16;  // top (closed) half-width
+          isoE(cx, cy, TW * 0.082, '#5e5e58');           // base disc
+          ctx.lineWidth = pw;
+          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - h); ctx.stroke();
+          drawShade(cx, cy - h - bH, topW, botW, bH, botW * 1.6);
+          ctx.beginPath(); ctx.arc(cx, cy - h, Math.max(2, TW * 0.068), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,252,205,0.97)'; ctx.fill();
 
         } else if (lamp.shape === 'table') {
-          const h  = fullH * 0.50;
-          const sw = TW * 0.30;
-          const sh = sw * 0.46;
-          // Wide base
-          ctx.fillStyle = '#888';
-          ctx.beginPath();
-          ctx.ellipse(cx, cy, TW*0.12, TW*0.06, 0, 0, Math.PI*2);
-          ctx.fill();
-          // Short stem
-          ctx.strokeStyle = '#b8b0a0';
-          ctx.lineWidth = Math.max(1, TW * 0.052);
-          ctx.beginPath();
-          ctx.moveTo(cx, cy - TW*0.04);
-          ctx.lineTo(cx, cy - h * 0.42);
-          ctx.stroke();
-          // Dome shade
-          const domeTop = cy - h;
-          ctx.shadowColor = mc;
-          ctx.shadowBlur  = sw * 1.6;
-          ctx.beginPath();
-          ctx.arc(cx, domeTop + sh*0.28, sw, Math.PI, 0);
-          ctx.lineTo(cx + sw, domeTop + sh * 1.05);
-          ctx.lineTo(cx - sw, domeTop + sh * 1.05);
-          ctx.closePath();
-          ctx.fillStyle = mc;
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          // Inner glow
-          ctx.beginPath();
-          ctx.arc(cx, domeTop + sh*0.28, sw * 0.68, Math.PI, 0);
-          ctx.lineTo(cx + sw*0.68, domeTop + sh * 0.95);
-          ctx.lineTo(cx - sw*0.68, domeTop + sh * 0.95);
-          ctx.closePath();
-          ctx.fillStyle = 'rgba(255,252,215,0.2)';
-          ctx.fill();
-          // Bulb
-          ctx.beginPath();
-          ctx.arc(cx, domeTop + sh*0.82, Math.max(1.5, TW*0.055), 0, Math.PI*2);
-          ctx.fillStyle = 'rgba(255,250,200,0.93)';
-          ctx.fill();
+          // Short pole, very wide dome shade
+          const h   = WH * 0.42;
+          const bH  = TW * 0.18;
+          const botW = TW * 0.46;
+          const topW = TW * 0.18;
+          isoE(cx, cy, TW * 0.14, '#686860');
+          ctx.lineWidth = pw;
+          ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - h); ctx.stroke();
+          drawShade(cx, cy - h - bH, topW, botW, bH, botW * 1.6);
+          ctx.beginPath(); ctx.arc(cx, cy - h, Math.max(2, TW * 0.072), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,252,205,0.97)'; ctx.fill();
 
         } else if (lamp.shape === 'pendant') {
-          const ceilY = cy - WH * 0.88;  // implied ceiling height
-          const hangY = cy - fullH * 0.22;
-          const sw    = TW * 0.2;
-          const sh    = TW * 0.15;
-          // Cord
-          ctx.strokeStyle = '#888';
-          ctx.lineWidth = Math.max(1, TW * 0.036);
-          ctx.beginPath();
-          ctx.moveTo(cx, ceilY);
-          ctx.lineTo(cx, hangY - sh * 0.25);
-          ctx.stroke();
-          // Bell shade (bezier curves for organic shape)
-          ctx.shadowColor = mc;
-          ctx.shadowBlur  = sw * 2.2;
-          ctx.beginPath();
-          ctx.moveTo(cx - sw*0.22, hangY - sh*0.25);
-          ctx.bezierCurveTo(cx - sw*0.22, hangY + sh*0.45, cx - sw, hangY + sh*0.85, cx - sw, hangY + sh*1.35);
-          ctx.lineTo(cx + sw, hangY + sh*1.35);
-          ctx.bezierCurveTo(cx + sw, hangY + sh*0.85, cx + sw*0.22, hangY + sh*0.45, cx + sw*0.22, hangY - sh*0.25);
-          ctx.closePath();
-          ctx.fillStyle = mc;
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          // Rim highlight
-          ctx.strokeStyle = lc;
-          ctx.lineWidth = Math.max(1, TW * 0.036);
-          ctx.beginPath();
-          ctx.moveTo(cx - sw, hangY + sh*1.35);
-          ctx.lineTo(cx + sw, hangY + sh*1.35);
-          ctx.stroke();
-          // Bulb
-          ctx.beginPath();
-          ctx.arc(cx, hangY + sh*0.5, Math.max(1.5, TW*0.052), 0, Math.PI*2);
-          ctx.fillStyle = 'rgba(255,250,200,0.93)';
-          ctx.fill();
+          // Cord from ceiling, shade hangs down (opens downward)
+          const ceilY = cy - WH * 0.94;
+          const hangY = cy - WH * 0.28;
+          const bH    = TW * 0.24;
+          const botW  = TW * 0.38;
+          const topW  = TW * 0.10;
+          ctx.lineWidth = Math.max(1, pw * 0.58);
+          ctx.beginPath(); ctx.moveTo(cx, ceilY); ctx.lineTo(cx, hangY); ctx.stroke();
+          drawShade(cx, hangY, topW, botW, bH, botW * 1.6);
+          ctx.beginPath(); ctx.arc(cx, hangY + bH * 0.5, Math.max(2, TW * 0.068), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,252,205,0.97)'; ctx.fill();
 
         } else if (lamp.shape === 'desk') {
-          const h   = fullH * 0.58;
-          const off = TW * 0.13;
-          const sw  = TW * 0.145;
-          const sh  = TW * 0.09;
-          // Base
-          ctx.fillStyle = '#888';
-          ctx.beginPath();
-          ctx.ellipse(cx + off, cy, TW*0.09, TW*0.045, 0, 0, Math.PI*2);
-          ctx.fill();
-          ctx.strokeStyle = '#b8b0a0';
-          ctx.lineWidth = Math.max(1, TW * 0.048);
-          // Vertical stem
-          ctx.beginPath();
-          ctx.moveTo(cx + off, cy);
-          ctx.lineTo(cx + off, cy - h * 0.52);
-          ctx.stroke();
-          // Angled arm
-          ctx.lineWidth = Math.max(1, TW * 0.042);
-          ctx.beginPath();
-          ctx.moveTo(cx + off, cy - h * 0.52);
-          ctx.lineTo(cx - off * 0.75, cy - h);
-          ctx.stroke();
-          // Directed shade
-          const shX = cx - off * 0.75;
-          const shY = cy - h;
-          ctx.shadowColor = mc;
-          ctx.shadowBlur  = sw * 2;
-          ctx.beginPath();
-          ctx.moveTo(shX - sw,      shY + sh*0.62);
-          ctx.lineTo(shX + sw,      shY + sh*0.62);
-          ctx.lineTo(shX + sw*0.52, shY - sh*0.62);
-          ctx.lineTo(shX - sw*0.52, shY - sh*0.62);
-          ctx.closePath();
-          ctx.fillStyle = mc;
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          // Bulb
-          ctx.beginPath();
-          ctx.arc(shX, shY + sh*0.38, Math.max(1.2, TW*0.042), 0, Math.PI*2);
-          ctx.fillStyle = 'rgba(255,250,200,0.93)';
-          ctx.fill();
+          // Offset base, vertical stem + angled arm, small directed shade
+          const h    = WH * 0.62;
+          const off  = TW * 0.15;
+          const bH   = TW * 0.11;
+          const botW = TW * 0.28;
+          const topW = TW * 0.10;
+          isoE(cx + off, cy, TW * 0.10, '#686860');
+          ctx.lineWidth = pw;
+          ctx.beginPath(); ctx.moveTo(cx+off, cy); ctx.lineTo(cx+off, cy-h*0.55); ctx.stroke();
+          ctx.lineWidth = pw * 0.80;
+          const ax = cx - off * 0.70, ay = cy - h;
+          ctx.beginPath(); ctx.moveTo(cx+off, cy-h*0.55); ctx.lineTo(ax, ay); ctx.stroke();
+          drawShade(ax, ay - bH, topW, botW, bH, botW * 1.8);
+          ctx.beginPath(); ctx.arc(ax, ay, Math.max(1.5, TW * 0.058), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,252,205,0.97)'; ctx.fill();
 
         } else { // arc
-          const h    = fullH;
-          const bOff = TW * 0.14;
-          const sw   = TW * 0.22;
-          const sh   = TW * 0.11;
-          // Heavy two-tier base
-          ctx.fillStyle = '#666';
+          // Weighted base, tall pole, sweeping quadratic arm, shade at tip
+          const h    = WH * 0.88;
+          const bOff = TW * 0.15;
+          const bH   = TW * 0.14;
+          const botW = TW * 0.36;
+          const topW = TW * 0.14;
+          isoE(cx+bOff, cy,           TW*0.14, '#4e4e48');
+          isoE(cx+bOff, cy-TW*0.048, TW*0.09, '#747470');
+          ctx.lineWidth = pw;
+          ctx.beginPath(); ctx.moveTo(cx+bOff, cy); ctx.lineTo(cx+bOff, cy-h*0.90); ctx.stroke();
+          ctx.lineWidth = pw * 0.78;
+          const ex = cx - botW * 0.52, ey = cy - h * 0.76;
           ctx.beginPath();
-          ctx.ellipse(cx + bOff, cy, TW*0.13, TW*0.065, 0, 0, Math.PI*2);
-          ctx.fill();
-          ctx.fillStyle = '#888';
-          ctx.beginPath();
-          ctx.ellipse(cx + bOff, cy - TW*0.04, TW*0.09, TW*0.045, 0, 0, Math.PI*2);
-          ctx.fill();
-          // Tall pole
-          ctx.strokeStyle = '#b8b0a0';
-          ctx.lineWidth = Math.max(1, TW * 0.052);
-          ctx.beginPath();
-          ctx.moveTo(cx + bOff, cy);
-          ctx.lineTo(cx + bOff, cy - h * 0.88);
+          ctx.moveTo(cx+bOff, cy-h*0.90);
+          ctx.quadraticCurveTo(cx+bOff, cy-h*1.08, ex, ey);
           ctx.stroke();
-          // Sweeping arc arm
-          ctx.lineWidth = Math.max(1, TW * 0.042);
-          ctx.beginPath();
-          ctx.moveTo(cx + bOff, cy - h * 0.88);
-          ctx.quadraticCurveTo(cx + bOff, cy - h * 1.06, cx - sw * 0.58, cy - h * 0.78);
-          ctx.stroke();
-          // Shade at arc end
-          const aX = cx - sw * 0.58;
-          const aY = cy - h * 0.78;
-          ctx.shadowColor = mc;
-          ctx.shadowBlur  = sw * 2;
-          ctx.beginPath();
-          ctx.moveTo(aX - sw*0.38, aY - sh*0.55);
-          ctx.lineTo(aX + sw*0.38, aY - sh*0.55);
-          ctx.lineTo(aX + sw,      aY + sh*0.55);
-          ctx.lineTo(aX - sw,      aY + sh*0.55);
-          ctx.closePath();
-          ctx.fillStyle = mc;
-          ctx.fill();
-          ctx.shadowBlur = 0;
-          // Bulb
-          ctx.beginPath();
-          ctx.arc(aX, aY + sh*0.28, Math.max(1.5, TW*0.052), 0, Math.PI*2);
-          ctx.fillStyle = 'rgba(255,250,200,0.93)';
-          ctx.fill();
+          drawShade(ex, ey - bH, topW, botW, bH, botW * 1.8);
+          ctx.beginPath(); ctx.arc(ex, ey, Math.max(2, TW * 0.068), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,252,205,0.97)'; ctx.fill();
         }
 
         ctx.restore();
