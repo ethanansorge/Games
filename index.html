@@ -292,10 +292,31 @@
       align-items: center;
       padding: 16px;
       z-index: 150;
-      overflow-y: auto;
+      overflow: auto;
       gap: 10px;
     }
     #placement-overlay.show { display: flex; }
+
+    #rotate-btns {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+      max-width: 360px;
+      flex-shrink: 0;
+    }
+    #rotate-btns button {
+      flex: 1;
+      padding: 9px 0;
+      background: #111133;
+      border: 1px solid #335;
+      border-radius: 6px;
+      color: #7777bb;
+      font-size: 0.65rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      cursor: pointer;
+    }
+    #rotate-btns button:active { background: #1a1a44; color: #aaaaff; }
 
     #place-title {
       font-size: 1rem;
@@ -459,6 +480,10 @@
     <div id="place-lamp-info"></div>
     <div id="place-hint">Tap any open floor space</div>
     <canvas id="floor-canvas" width="288" height="288"></canvas>
+    <div id="rotate-btns">
+      <button onclick="rotateFloor(-1)">&#x21BA; ROTATE L</button>
+      <button onclick="rotateFloor(1)">ROTATE R &#x21BB;</button>
+    </div>
     <button id="place-close" onclick="closePlacementView()">&#x2715;</button>
   </div>
 
@@ -482,6 +507,8 @@
     let itemToPlace = null;
     let placedItems = [];   // [{col, row, item}]
     let viewingOnly = false;
+    let floorZoom = 1.0;
+    let floorRotation = 0;  // 0=NW 1=NE 2=SE 3=SW view
 
     // ── Lamp generation ────────────────────────────────────────────────────────
     const SHAPES = ['floor', 'table', 'pendant', 'desk', 'arc'];
@@ -739,13 +766,34 @@
     ];
 
     // ── Isometric floor plan ───────────────────────────────────────────────────
+    function effectiveCoords(col, row) {
+      const G = GRID - 1;
+      switch (floorRotation) {
+        case 1: return [G - row, col];
+        case 2: return [G - col, G - row];
+        case 3: return [row, G - col];
+        default: return [col, row];
+      }
+    }
+
+    function inverseRotation(c, r) {
+      const G = GRID - 1;
+      switch (floorRotation) {
+        case 1: return [r, G - c];
+        case 2: return [G - c, G - r];
+        case 3: return [G - r, c];
+        default: return [c, r];
+      }
+    }
+
     function floorParams() {
       const maxW = Math.min(window.innerWidth - 32, 360);
       let TW = Math.floor(maxW / GRID / 2) * 2;
       TW = Math.max(20, Math.min(TW, 32));
+      TW = Math.max(10, Math.min(Math.round(TW * floorZoom), 96));
       const TH = TW / 2;
-      const WH = TW;        // Sims-style: wall height equals tile width
-      const CAP = Math.max(2, Math.round(TW * 0.08)); // faux wall cross-section cap
+      const WH = TW;
+      const CAP = Math.max(2, Math.round(TW * 0.08));
       return { TW, TH, WH, CAP };
     }
 
@@ -767,9 +815,10 @@
       ctx.clearRect(0, 0, canvasW, canvasH);
 
       function ip(col, row) {
+        const [c, r] = effectiveCoords(col, row);
         return {
-          x: PAD + (col - row + GRID - 1) * TW / 2,
-          y: PAD_TOP + (col + row) * TH / 2,
+          x: PAD + (c - r + GRID - 1) * TW / 2,
+          y: PAD_TOP + (c + r) * TH / 2,
         };
       }
 
@@ -1163,13 +1212,15 @@
       const queue = [];
       for (let row = 0; row < GRID; row++) {
         for (let col = 0; col < GRID; col++) {
-          queue.push({ type: 'tile', col, row, depth: col + row });
+          const [ec, er] = effectiveCoords(col, row);
+          queue.push({ type: 'tile', col, row, depth: ec + er, ec });
         }
       }
       for (const p of placedItems) {
-        queue.push({ type: 'item', col: p.col, row: p.row, item: p.item, depth: p.col + p.row + 0.1 });
+        const [ec, er] = effectiveCoords(p.col, p.row);
+        queue.push({ type: 'item', col: p.col, row: p.row, item: p.item, depth: ec + er + 0.1, ec });
       }
-      queue.sort((a, b) => a.depth - b.depth || a.col - b.col);
+      queue.sort((a, b) => a.depth - b.depth || a.ec - b.ec);
 
       for (const item of queue) {
         const { col, row } = item;
@@ -1208,9 +1259,12 @@
 
     function initFloorCanvas() {
       const canvas = document.getElementById('floor-canvas');
+      let pinchStartDist = null;
+      let pinchStartZoom = 1.0;
 
       function onTap(e) {
         e.preventDefault();
+        if (e.touches && e.touches.length > 1) return; // ignore pinch
         const rect = canvas.getBoundingClientRect();
         let clientX, clientY;
         if (e.touches && e.touches.length > 0) {
@@ -1225,14 +1279,17 @@
         const sx = (clientX - rect.left) * (canvas.width  / rect.width);
         const sy = (clientY - rect.top)  * (canvas.height / rect.height);
 
-        // Inverse isometric transform
-        const { TW, TH } = floorParams(); // CAP not needed for hit-testing
-        const a   = sx - TW / 2;            // remove PAD
-        const b   = sy - 4;                  // remove PAD_TOP
-        const u   = 2 * a / TW - (GRID - 1); // = col - row
-        const v   = 2 * b / TH;              // = col + row
-        const col = Math.floor((u + v) / 2);
-        const row = Math.floor((v - u) / 2);
+        // Inverse isometric transform → effective (c, r) in rotated space
+        const { TW, TH } = floorParams();
+        const a = sx - TW / 2;
+        const b = sy - 4;
+        const u = 2 * a / TW - (GRID - 1);
+        const v = 2 * b / TH;
+        const ec = Math.floor((u + v) / 2);
+        const er = Math.floor((v - u) / 2);
+
+        // Map effective coords back to actual grid coords
+        const [col, row] = inverseRotation(ec, er);
 
         if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
 
@@ -1254,6 +1311,25 @@
 
       canvas.addEventListener('touchstart', onTap, { passive: false });
       canvas.addEventListener('click', onTap);
+
+      canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        if (e.touches.length !== 2) return;
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (pinchStartDist === null) {
+          pinchStartDist = dist;
+          pinchStartZoom = floorZoom;
+        } else {
+          floorZoom = Math.max(0.5, Math.min(4.0, pinchStartZoom * dist / pinchStartDist));
+          renderFloorPlan();
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', (e) => {
+        if (e.touches.length < 2) pinchStartDist = null;
+      }, { passive: false });
     }
 
     // ── UI helpers ─────────────────────────────────────────────────────────────
@@ -1390,6 +1466,11 @@
       viewingOnly = false;
     }
 
+    function rotateFloor(dir) {
+      floorRotation = ((floorRotation + dir) % 4 + 4) % 4;
+      renderFloorPlan();
+    }
+
     function nextAuction() {
       document.getElementById('result-overlay').classList.remove('show');
       if (funds <= 0) {
@@ -1416,6 +1497,8 @@
       placedItems = [];
       itemToPlace = null;
       viewingOnly = false;
+      floorZoom = 1.0;
+      floorRotation = 0;
       document.getElementById('gameover-overlay').classList.remove('show');
       startAuction();
     }
