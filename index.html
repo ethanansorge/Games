@@ -32,8 +32,22 @@
       font-size: 0.65rem;
       color: #8888cc;
       letter-spacing: 3px;
-      margin-bottom: 16px;
+      margin-bottom: 8px;
     }
+
+    #apt-btn {
+      background: #111133;
+      border: 1px solid #335;
+      border-radius: 4px;
+      color: #7777bb;
+      font-size: 0.6rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      padding: 5px 14px;
+      cursor: pointer;
+      margin-bottom: 12px;
+    }
+    #apt-btn:active { background: #1a1a44; color: #aaaaff; }
 
     #hud {
       display: flex;
@@ -188,6 +202,7 @@
     #bid-btn:active { background: #336633; }
     #bid-btn:disabled { background: #1a1a1a; border-color: #333; color: #555; cursor: not-allowed; }
 
+    /* ── Result overlay ── */
     #result-overlay {
       display: none;
       position: fixed;
@@ -212,10 +227,7 @@
       text-align: center;
     }
 
-    #result-title {
-      font-size: 1.8rem;
-      margin-bottom: 10px;
-    }
+    #result-title { font-size: 1.8rem; margin-bottom: 10px; }
 
     #result-detail {
       font-size: 0.8rem;
@@ -223,6 +235,22 @@
       line-height: 1.7;
       margin-bottom: 20px;
     }
+
+    #result-place {
+      display: none;
+      width: 100%;
+      padding: 14px;
+      background: #1a3322;
+      border: 2px solid #44aa66;
+      border-radius: 6px;
+      color: #66ffaa;
+      font-size: 0.9rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
+    #result-place:active { background: #254433; }
 
     #result-next {
       width: 100%;
@@ -238,6 +266,70 @@
     }
     #result-next:active { background: #334455; }
 
+    /* ── Placement overlay ── */
+    #placement-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #0a0a1a;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      z-index: 150;
+      overflow-y: auto;
+      gap: 10px;
+    }
+    #placement-overlay.show { display: flex; }
+
+    #place-title {
+      font-size: 1rem;
+      color: #ffee44;
+      text-shadow: 0 0 6px #aa8800;
+      letter-spacing: 3px;
+      text-align: center;
+      margin-top: 4px;
+    }
+
+    #place-lamp-info {
+      font-size: 0.7rem;
+      color: #aaaacc;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+
+    #place-hint {
+      font-size: 0.62rem;
+      color: #666699;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+
+    canvas#floor-canvas {
+      image-rendering: pixelated;
+      /* size set dynamically in JS to fill available width */
+      border: 2px solid #446;
+      border-radius: 4px;
+      display: block;
+      touch-action: none;
+    }
+
+    #place-close {
+      width: 100%;
+      max-width: 288px;
+      padding: 10px;
+      background: #111133;
+      border: 1px solid #335;
+      border-radius: 6px;
+      color: #6666aa;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      cursor: pointer;
+      text-align: center;
+    }
+    #place-close:active { background: #1a1a44; }
+
+    /* ── Game over overlay ── */
     #gameover-overlay {
       display: none;
       position: fixed;
@@ -280,6 +372,7 @@
 <body>
   <h1>LAMP AUCTION</h1>
   <div id="subtitle">8-BIT EDITION</div>
+  <button id="apt-btn" onclick="viewApartment()">MY APARTMENT</button>
 
   <div id="hud">
     <div class="hud-item">
@@ -334,8 +427,18 @@
     <div id="result-box">
       <div id="result-title"></div>
       <div id="result-detail"></div>
+      <button id="result-place" onclick="goPlaceLamp()">PLACE YOUR LAMP &gt;&gt;</button>
       <button id="result-next" onclick="nextAuction()">NEXT LOT &gt;&gt;</button>
     </div>
+  </div>
+
+  <!-- Placement overlay -->
+  <div id="placement-overlay">
+    <div id="place-title">PLACE YOUR LAMP</div>
+    <div id="place-lamp-info"></div>
+    <div id="place-hint">Tap any open floor space</div>
+    <canvas id="floor-canvas" width="288" height="288"></canvas>
+    <button id="place-close" onclick="closePlacementView()">BACK TO AUCTION</button>
   </div>
 
   <!-- Game over overlay -->
@@ -355,6 +458,9 @@
     let lampsWon = 0;
     let bidStr = '0';
     let currentLamp = null;
+    let lampToPlace = null;
+    let placedLamps = [];   // [{col, row, lamp}]
+    let viewingOnly = false;
 
     // ── Lamp generation ────────────────────────────────────────────────────────
     const SHAPES = ['floor', 'table', 'pendant', 'desk', 'arc'];
@@ -419,94 +525,226 @@
       const lc = lighter(c);
       const grey = [140, 140, 150];
       const dkgrey = [80, 80, 90];
-      const glow = [Math.min(255,c[0]+60), Math.min(255,c[1]+60), Math.min(255,c[2]+40), 180];
 
-      const sizeIdx = SIZES.indexOf(lamp.size); // 0..4
-      // scale body height: tiny=small, huge=taller
-      const bodyH = 5 + sizeIdx * 2; // 5,7,9,11,13
-      const bodyW = 4 + sizeIdx;     // 4,5,6,7,8
+      const sizeIdx = SIZES.indexOf(lamp.size);
+      const bodyH = 5 + sizeIdx * 2;
+      const bodyW = 4 + sizeIdx;
 
       if (lamp.shape === 'table') {
-        // shade / dome on top
         const domeX = 16 - Math.round(bodyW*0.9);
         const domeW = Math.round(bodyW*1.8);
         const domeY = 10 - sizeIdx;
         const domeH = 4 + sizeIdx;
         fillRect(d, domeX, domeY, domeW, domeH, ...dc);
         fillRect(d, domeX+1, domeY+1, domeW-2, domeH-2, ...c);
-        // glow bulb
         fillRect(d, 15, domeY+domeH-1, 2, 2, ...lc);
-        // stem
         fillRect(d, 15, domeY+domeH, 2, bodyH, ...grey);
-        // base
         const baseW = bodyW + 2;
         fillRect(d, 16-Math.round(baseW/2), domeY+domeH+bodyH, baseW, 2, ...dkgrey);
         fillRect(d, 16-Math.round(baseW/2)+1, domeY+domeH+bodyH+2, baseW-2, 1, ...dkgrey);
 
       } else if (lamp.shape === 'floor') {
-        // tall pole
         const poleTop = 6 - sizeIdx;
         fillRect(d, 15, poleTop, 2, 20 + sizeIdx, ...grey);
-        // shade on arm
         const shadeY = poleTop + 1;
         fillRect(d, 10, shadeY, 8+sizeIdx, 3+sizeIdx, ...dc);
         fillRect(d, 11, shadeY+1, 6+sizeIdx, 1+sizeIdx, ...c);
-        // bulb glow
         fillRect(d, 14, shadeY + 3+sizeIdx, 4, 2, ...lc);
-        // base plate
         fillRect(d, 10, poleTop+21+sizeIdx, 12, 2, ...dkgrey);
 
       } else if (lamp.shape === 'pendant') {
-        // cord from top
         const cordLen = 6 + sizeIdx;
         fillRect(d, 15, 2, 2, cordLen, ...dkgrey);
-        // cage / shade
         const shadeY = 2 + cordLen;
         const sw = 5 + sizeIdx;
         const sh = 6 + sizeIdx;
         fillRect(d, 16-sw, shadeY, sw*2, sh, ...dc);
         fillRect(d, 16-sw+1, shadeY+1, sw*2-2, sh-2, ...c);
-        // interior glow
         fillRect(d, 14, shadeY+2, 4, sh-4, 255, 255, 200, 200);
-        // bottom opening
         fillRect(d, 16-sw+2, shadeY+sh, sw*2-4, 2, ...lc);
 
       } else if (lamp.shape === 'desk') {
-        // low arm lamp
         const baseY = 24;
         fillRect(d, 12, baseY, 8, 2, ...dkgrey);
-        // vertical stem
         const stemH = 8 + sizeIdx;
         fillRect(d, 15, baseY - stemH, 2, stemH, ...grey);
-        // arm
         const armLen = 5 + sizeIdx;
         fillRect(d, 15, baseY - stemH, armLen, 2, ...grey);
-        // shade
         const sx = 15 + armLen - 2;
         const sy = baseY - stemH - 1;
         fillRect(d, sx, sy, 6, 4, ...dc);
         fillRect(d, sx+1, sy+1, 4, 2, ...c);
-        // beam
         fillRect(d, sx+1, sy+4, 4, 2, ...lc);
 
       } else { // arc
-        // tall arc pole
         const poleBase = 28;
         fillRect(d, 15, poleBase - 16 - sizeIdx, 2, 16+sizeIdx, ...grey);
-        // arc arm going left
         fillRect(d, 7, poleBase - 16 - sizeIdx, 8, 2, ...grey);
-        // hanging shade
         const hx = 5;
         const hy = poleBase - 16 - sizeIdx + 2;
         const hw = 6 + sizeIdx;
         fillRect(d, hx, hy, hw, 5+sizeIdx, ...dc);
         fillRect(d, hx+1, hy+1, hw-2, 3+sizeIdx, ...c);
         fillRect(d, hx+1, hy+4+sizeIdx, hw-2, 2, ...lc);
-        // base
         fillRect(d, 12, poleBase, 8, 2, ...dkgrey);
       }
 
       ctx.putImageData(img, 0, 0);
+    }
+
+    // ── Floor plan ─────────────────────────────────────────────────────────────
+    const GRID = 12;
+    // 0 = open floor, 1 = wall, 2 = doorway (open, not placeable)
+    const FLOOR_PLAN = [
+      [1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,2,0,0,0,0,0,1],  // door: bedroom <-> living room
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,1,2,1,1,1,0,0,0,0,0,1],  // door: bedroom -> hallway/kitchen
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,0,0,0,0,1,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1],
+    ];
+
+    // Fit canvas to available screen width
+    function floorCellSize() {
+      const maxW = Math.min(window.innerWidth - 32, 288);
+      return Math.floor(maxW / GRID);
+    }
+
+    function renderFloorPlan() {
+      const cs = floorCellSize();
+      const canvas = document.getElementById('floor-canvas');
+      const size = cs * GRID;
+      canvas.width = size;
+      canvas.height = size;
+      canvas.style.width  = size + 'px';
+      canvas.style.height = size + 'px';
+
+      const ctx = canvas.getContext('2d');
+
+      for (let row = 0; row < GRID; row++) {
+        for (let col = 0; col < GRID; col++) {
+          const x = col * cs;
+          const y = row * cs;
+          const cell = FLOOR_PLAN[row][col];
+
+          if (cell === 1) {
+            // Wall — two-tone brick look
+            ctx.fillStyle = '#2a2a44';
+            ctx.fillRect(x, y, cs, cs);
+            ctx.fillStyle = '#1e1e38';
+            ctx.fillRect(x+1, y+1, cs-2, cs-2);
+          } else if (cell === 2) {
+            // Doorway — warm wood tone
+            ctx.fillStyle = '#141424';
+            ctx.fillRect(x, y, cs, cs);
+            ctx.fillStyle = '#3a2a14';
+            ctx.fillRect(x+2, y+2, cs-4, cs-4);
+          } else {
+            // Open floor — dark tile with subtle grid
+            ctx.fillStyle = '#141424';
+            ctx.fillRect(x, y, cs, cs);
+            ctx.strokeStyle = '#1c1c30';
+            ctx.lineWidth = 0.5;
+            ctx.strokeRect(x+0.5, y+0.5, cs-1, cs-1);
+          }
+        }
+      }
+
+      // Room labels
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(120,120,180,0.45)';
+      ctx.font = `bold ${Math.max(6, Math.round(cs*0.38))}px monospace`;
+      ctx.fillText('BEDROOM',    cs * 3,   cs * 3.5);
+      ctx.fillText('LIVING',     cs * 8.5, cs * 3.5);
+      ctx.fillText('ROOM',       cs * 8.5, cs * 4.5);
+      ctx.fillText('KITCHEN',    cs * 3,   cs * 8.5);
+
+      // Draw placed lamps
+      for (const p of placedLamps) {
+        drawLampOnGrid(ctx, p.col, p.row, p.lamp, cs);
+      }
+
+      // If placing, highlight valid empty cells faintly
+      if (lampToPlace !== null) {
+        const [r,g,b] = lampToPlace.color.shade;
+        ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
+        for (let row = 0; row < GRID; row++) {
+          for (let col = 0; col < GRID; col++) {
+            if (FLOOR_PLAN[row][col] === 0 && !placedLamps.some(p => p.col===col && p.row===row)) {
+              ctx.fillRect(col*cs+1, row*cs+1, cs-2, cs-2);
+            }
+          }
+        }
+      }
+    }
+
+    function drawLampOnGrid(ctx, col, row, lamp, cs) {
+      const x = col * cs;
+      const y = row * cs;
+      const pad = Math.max(2, Math.round(cs * 0.15));
+      const [r, g, b] = lamp.color.shade;
+
+      ctx.save();
+      ctx.shadowColor = `rgb(${r},${g},${b})`;
+      ctx.shadowBlur = cs * 0.5;
+      ctx.fillStyle = `rgb(${Math.min(255,r+60)},${Math.min(255,g+60)},${Math.min(255,b+40)})`;
+      ctx.fillRect(x+pad, y+pad, cs-pad*2, cs-pad*2);
+      ctx.restore();
+
+      // Dark border
+      ctx.strokeStyle = `rgb(${Math.round(r*0.35)},${Math.round(g*0.35)},${Math.round(b*0.35)})`;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x+pad+0.5, y+pad+0.5, cs-pad*2-1, cs-pad*2-1);
+    }
+
+    function initFloorCanvas() {
+      const canvas = document.getElementById('floor-canvas');
+
+      function onTap(e) {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const cs = floorCellSize();
+        let cx, cy;
+        if (e.touches && e.touches.length > 0) {
+          cx = e.touches[0].clientX;
+          cy = e.touches[0].clientY;
+        } else {
+          cx = e.clientX;
+          cy = e.clientY;
+        }
+        const col = Math.floor((cx - rect.left) / (rect.width  / GRID));
+        const row = Math.floor((cy - rect.top)  / (rect.height / GRID));
+
+        if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
+
+        if (viewingOnly) {
+          closePlacementView();
+          return;
+        }
+
+        if (FLOOR_PLAN[row][col] !== 0) return;
+        if (placedLamps.some(p => p.col === col && p.row === row)) return;
+
+        placedLamps.push({ col, row, lamp: lampToPlace });
+        lampToPlace = null;
+        document.getElementById('placement-overlay').classList.remove('show');
+
+        if (funds <= 0) {
+          showGameOver();
+        } else {
+          startAuction();
+        }
+      }
+
+      canvas.addEventListener('touchstart', onTap, { passive: false });
+      canvas.addEventListener('click', onTap);
     }
 
     // ── UI helpers ─────────────────────────────────────────────────────────────
@@ -554,29 +792,22 @@
 
       drawLamp(currentLamp);
       updateHUD();
-
       document.getElementById('bid-btn').disabled = false;
     }
 
     function placeBid() {
       const bid = parseInt(bidStr, 10);
-      if (bid <= 0) {
-        bidStr = '0';
-        updateBidDisplay();
-        return;
-      }
-      if (bid > funds) {
-        bidStr = String(funds);
-        updateBidDisplay();
-        return;
-      }
+      if (bid <= 0) { bidStr = '0'; updateBidDisplay(); return; }
+      if (bid > funds) { bidStr = String(funds); updateBidDisplay(); return; }
 
       document.getElementById('bid-btn').disabled = true;
       const secret = currentLamp.secretPrice;
       const won = bid >= secret;
 
-      const title = document.getElementById('result-title');
+      const title  = document.getElementById('result-title');
       const detail = document.getElementById('result-detail');
+      const placeBtn = document.getElementById('result-place');
+      const nextBtn  = document.getElementById('result-next');
 
       if (won) {
         lampsWon++;
@@ -587,6 +818,9 @@
           `You bid <strong style="color:#ffee44">$${bid}</strong><br>` +
           `Reserve was <strong style="color:#88ffcc">$${secret}</strong><br><br>` +
           `Lamp acquired! Remaining funds: <strong style="color:#44ffcc">$${funds}</strong>`;
+        lampToPlace = currentLamp;
+        placeBtn.style.display = 'block';
+        nextBtn.style.display = 'none';
       } else {
         title.textContent = '✗ OUTBID';
         title.style.color = '#ff4444';
@@ -594,10 +828,40 @@
           `You bid <strong style="color:#ffee44">$${bid}</strong><br>` +
           `Reserve was <strong style="color:#ff8888">$${secret}</strong><br><br>` +
           `Better luck next time. Funds: <strong style="color:#44ffcc">$${funds}</strong>`;
+        placeBtn.style.display = 'none';
+        nextBtn.style.display = 'block';
       }
 
       document.getElementById('result-overlay').classList.add('show');
       updateHUD();
+    }
+
+    function goPlaceLamp() {
+      document.getElementById('result-overlay').classList.remove('show');
+      viewingOnly = false;
+      document.getElementById('place-title').textContent = 'PLACE YOUR LAMP';
+      document.getElementById('place-lamp-info').textContent =
+        `${lampToPlace.size} ${lampToPlace.color.name} ${lampToPlace.shape} lamp`;
+      document.getElementById('place-hint').textContent = 'Tap any open floor space';
+      document.getElementById('place-close').textContent = 'BACK TO AUCTION';
+      document.getElementById('placement-overlay').classList.add('show');
+      renderFloorPlan();
+    }
+
+    function viewApartment() {
+      viewingOnly = true;
+      document.getElementById('place-title').textContent = 'YOUR APARTMENT';
+      document.getElementById('place-lamp-info').textContent =
+        `${lampsWon} lamp${lampsWon !== 1 ? 's' : ''} placed`;
+      document.getElementById('place-hint').textContent = 'Tap anywhere to close';
+      document.getElementById('place-close').textContent = 'CLOSE';
+      document.getElementById('placement-overlay').classList.add('show');
+      renderFloorPlan();
+    }
+
+    function closePlacementView() {
+      document.getElementById('placement-overlay').classList.remove('show');
+      viewingOnly = false;
     }
 
     function nextAuction() {
@@ -623,11 +887,15 @@
       funds = STARTING_FUNDS;
       auctionNum = 0;
       lampsWon = 0;
+      placedLamps = [];
+      lampToPlace = null;
+      viewingOnly = false;
       document.getElementById('gameover-overlay').classList.remove('show');
       startAuction();
     }
 
     // ── Boot ───────────────────────────────────────────────────────────────────
+    initFloorCanvas();
     startAuction();
   </script>
 </body>
