@@ -404,7 +404,7 @@
       <div class="hud-value" id="auction-count">0</div>
     </div>
     <div class="hud-item">
-      <div class="hud-label">LAMPS WON</div>
+      <div class="hud-label">ITEMS WON</div>
       <div class="hud-value" id="score-val">0</div>
     </div>
   </div>
@@ -448,7 +448,7 @@
     <div id="result-box">
       <div id="result-title"></div>
       <div id="result-detail"></div>
-      <button id="result-place" onclick="goPlaceLamp()">PLACE YOUR LAMP &gt;&gt;</button>
+      <button id="result-place" onclick="goPlaceItem()">PLACE IT &gt;&gt;</button>
       <button id="result-next" onclick="nextAuction()">NEXT LOT &gt;&gt;</button>
     </div>
   </div>
@@ -476,11 +476,11 @@
     const STARTING_FUNDS = 500;
     let funds = STARTING_FUNDS;
     let auctionNum = 0;
-    let lampsWon = 0;
+    let itemsWon = 0;
     let bidStr = '0';
-    let currentLamp = null;
-    let lampToPlace = null;
-    let placedLamps = [];   // [{col, row, lamp}]
+    let currentItem = null;
+    let itemToPlace = null;
+    let placedItems = [];   // [{col, row, item}]
     let viewingOnly = false;
 
     // ── Lamp generation ────────────────────────────────────────────────────────
@@ -516,7 +516,31 @@
       const lamp  = { shape, size, color };
       const minPrice = basePrice(lamp);
       const secretPrice = Math.round(minPrice * (0.7 + Math.random() * 0.7));
-      return { shape, size, color, secretPrice };
+      return { type: 'lamp', shape, size, color, secretPrice };
+    }
+
+    // ── Couch generation ───────────────────────────────────────────────────────
+    const COUCH_SHAPES = ['sofa', 'loveseat', 'armchair', 'chaise', 'sectional'];
+    const COUCH_SIZES  = ['compact', 'standard', 'large'];
+
+    function couchBasePrice(couch) {
+      const sizeMult = [0.7, 1.0, 1.5][COUCH_SIZES.indexOf(couch.size)];
+      const shapeMult = { sofa:1.4, loveseat:1.0, armchair:0.8, chaise:1.2, sectional:1.9 }[couch.shape];
+      return Math.round((60 + rand(120)) * sizeMult * shapeMult);
+    }
+
+    function generateCouch() {
+      const shape = pick(COUCH_SHAPES);
+      const size  = pick(COUCH_SIZES);
+      const color = pick(COLORS);
+      const couch = { type: 'couch', shape, size, color };
+      const minPrice = couchBasePrice(couch);
+      const secretPrice = Math.round(minPrice * (0.7 + Math.random() * 0.7));
+      return { type: 'couch', shape, size, color, secretPrice };
+    }
+
+    function generateItem() {
+      return Math.random() < 0.5 ? generateLamp() : generateCouch();
     }
 
     // ── Pixel art lamp drawing ─────────────────────────────────────────────────
@@ -608,6 +632,89 @@
         fillRect(d, hx+1, hy+1, hw-2, 3+sizeIdx, ...c);
         fillRect(d, hx+1, hy+4+sizeIdx, hw-2, 2, ...lc);
         fillRect(d, 12, poleBase, 8, 2, ...dkgrey);
+      }
+
+      ctx.putImageData(img, 0, 0);
+    }
+
+    // ── Pixel art couch drawing ────────────────────────────────────────────────
+    function drawCouch(couch) {
+      const canvas = document.getElementById('lamp-canvas');
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+      const d = img.data;
+      const c = couch.color.shade;
+      const dc = darker(c);
+      const lc = lighter(c);
+      const leg = [55, 38, 20];
+      const si = COUCH_SIZES.indexOf(couch.size);
+
+      if (couch.shape === 'sofa') {
+        const w = 22+si*2, x0 = (32-22-si*2)>>1;
+        const backH = 8+si, seatH = 5+si, y0 = 8-si;
+        fillRect(d, x0, y0, w, backH, ...dc);
+        fillRect(d, x0+1, y0+1, w-2, backH-2, ...c);
+        fillRect(d, x0, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+w-3, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+3, y0+backH, w-6, seatH, ...c);
+        fillRect(d, x0+3, y0+backH, w-6, 1, ...lc);
+        fillRect(d, x0+(w>>1), y0+backH, 1, seatH, ...dc);
+        fillRect(d, x0+2, y0+backH+seatH, 2, 3, ...leg);
+        fillRect(d, x0+w-4, y0+backH+seatH, 2, 3, ...leg);
+
+      } else if (couch.shape === 'loveseat') {
+        const w = 16+si*2, x0 = (32-16-si*2)>>1;
+        const backH = 8+si, seatH = 5+si, y0 = 8-si;
+        fillRect(d, x0, y0, w, backH, ...dc);
+        fillRect(d, x0+1, y0+1, w-2, backH-2, ...c);
+        fillRect(d, x0, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+w-3, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+3, y0+backH, w-6, seatH, ...c);
+        fillRect(d, x0+3, y0+backH, w-6, 1, ...lc);
+        fillRect(d, x0+(w>>1), y0+backH, 1, seatH, ...dc);
+        fillRect(d, x0+2, y0+backH+seatH, 2, 3, ...leg);
+        fillRect(d, x0+w-4, y0+backH+seatH, 2, 3, ...leg);
+
+      } else if (couch.shape === 'armchair') {
+        const w = 12+si*2, x0 = (32-12-si*2)>>1;
+        const backH = 9+si, seatH = 5+si, y0 = 8-si;
+        fillRect(d, x0, y0, w, backH, ...dc);
+        fillRect(d, x0+1, y0+1, w-2, backH-2, ...c);
+        fillRect(d, x0, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+w-3, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+3, y0+backH, w-6, seatH, ...c);
+        fillRect(d, x0+3, y0+backH, w-6, 1, ...lc);
+        fillRect(d, x0+2, y0+backH+seatH, 2, 3, ...leg);
+        fillRect(d, x0+w-4, y0+backH+seatH, 2, 3, ...leg);
+
+      } else if (couch.shape === 'chaise') {
+        const w = 24+si*2, x0 = (32-24-si*2)>>1;
+        const backH = 7+si, seatH = 5+si, y0 = 8-si;
+        const backW = w >> 1;
+        fillRect(d, x0, y0, backW, backH, ...dc);
+        fillRect(d, x0+1, y0+1, backW-2, backH-2, ...c);
+        fillRect(d, x0, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+3, y0+backH, w-3, seatH, ...c);
+        fillRect(d, x0+3, y0+backH, w-3, 1, ...lc);
+        fillRect(d, x0+w-2, y0+backH, 2, seatH, ...dc);
+        fillRect(d, x0+2, y0+backH+seatH, 2, 3, ...leg);
+        fillRect(d, x0+w-4, y0+backH+seatH, 2, 3, ...leg);
+
+      } else { // sectional
+        const w = 18+si*2, x0 = 4;
+        const backH = 5+si, seatH = 4+si, y0 = 6;
+        fillRect(d, x0, y0, w, backH, ...dc);
+        fillRect(d, x0+1, y0+1, w-2, backH-2, ...c);
+        fillRect(d, x0, y0, 3, backH+seatH, ...dc);
+        fillRect(d, x0+3, y0+backH, w, seatH, ...c);
+        fillRect(d, x0+3, y0+backH, w, 1, ...lc);
+        const vx = x0+w-backH, vy = y0+backH, vh = 8+si;
+        fillRect(d, vx, vy, backH, vh, ...dc);
+        fillRect(d, vx+1, vy+1, backH-2, vh-2, ...c);
+        fillRect(d, x0+3, vy, vx-(x0+3), vh, ...c);
+        fillRect(d, x0+3, vy, vx-(x0+3), 1, ...lc);
+        fillRect(d, x0+2, y0+backH+seatH+vh-4, 2, 3, ...leg);
+        fillRect(d, vx+backH-3, vy+vh, 2, 3, ...leg);
       }
 
       ctx.putImageData(img, 0, 0);
@@ -967,6 +1074,91 @@
         ctx.restore();
       }
 
+      // ── Per-shape isometric couch drawing ─────────────────────────────────
+      function drawIsoCouch(col, row, couch) {
+        const { x, y } = ip(col, row);
+        const [r, g, b] = couch.color.shade;
+        const mc  = `rgb(${r},${g},${b})`;
+        const mcl = `rgb(${Math.min(255,r+70)},${Math.min(255,g+60)},${Math.min(255,b+50)})`;
+        const mcd = `rgb(${Math.round(r*0.52)},${Math.round(g*0.52)},${Math.round(b*0.52)})`;
+
+        const scale = { armchair:0.52, loveseat:0.65, sofa:0.82, chaise:0.84, sectional:0.82 }[couch.shape] || 0.75;
+        const sW = TW * scale;
+        const sD = TH * scale;
+        const sH = Math.max(3, TW * 0.14);   // seat height off floor
+        const bH = Math.max(5, WH * 0.30);   // backrest height above seat
+
+        // Seat diamond elevated by sH, centered on tile center (cx, cy)
+        const cx = x, cy = y + TH / 2;
+        const T = { x: cx,        y: cy - sH - sD/2 };
+        const R = { x: cx + sW/2, y: cy - sH };
+        const B = { x: cx,        y: cy - sH + sD/2 };
+        const L = { x: cx - sW/2, y: cy - sH };
+
+        // Seat front-left face (L→B going down to floor)
+        ctx.beginPath();
+        ctx.moveTo(L.x, L.y); ctx.lineTo(B.x, B.y);
+        ctx.lineTo(B.x, B.y + sH); ctx.lineTo(L.x, L.y + sH);
+        ctx.closePath(); ctx.fillStyle = mcl; ctx.fill();
+
+        // Seat front-right face (B→R going down to floor) — darker
+        ctx.beginPath();
+        ctx.moveTo(B.x, B.y); ctx.lineTo(R.x, R.y);
+        ctx.lineTo(R.x, R.y + sH); ctx.lineTo(B.x, B.y + sH);
+        ctx.closePath(); ctx.fillStyle = mcd; ctx.fill();
+
+        // Seat top face
+        ctx.beginPath();
+        ctx.moveTo(T.x, T.y); ctx.lineTo(R.x, R.y);
+        ctx.lineTo(B.x, B.y); ctx.lineTo(L.x, L.y);
+        ctx.closePath(); ctx.fillStyle = mc; ctx.fill();
+
+        // Cushion crease for multi-seat shapes
+        if (couch.shape === 'sofa' || couch.shape === 'loveseat') {
+          ctx.strokeStyle = `rgba(0,0,0,0.20)`; ctx.lineWidth = 0.8;
+          ctx.beginPath(); ctx.moveTo(cx, T.y); ctx.lineTo(cx, B.y); ctx.stroke();
+        }
+
+        // Backrest — sits on the T-L / T-R edges, going upward
+        // Left face (T→L, going up bH)
+        ctx.beginPath();
+        ctx.moveTo(T.x, T.y); ctx.lineTo(L.x, L.y);
+        ctx.lineTo(L.x, L.y - bH); ctx.lineTo(T.x, T.y - bH);
+        ctx.closePath(); ctx.fillStyle = mcl; ctx.fill();
+
+        // Right face (T→R, going up bH)
+        ctx.beginPath();
+        ctx.moveTo(T.x, T.y); ctx.lineTo(R.x, R.y);
+        ctx.lineTo(R.x, R.y - bH); ctx.lineTo(T.x, T.y - bH);
+        ctx.closePath(); ctx.fillStyle = mc; ctx.fill();
+
+        // Backrest cap
+        ctx.beginPath();
+        ctx.moveTo(T.x, T.y - bH); ctx.lineTo(R.x, R.y - bH);
+        ctx.lineTo(R.x, R.y - bH - 1); ctx.lineTo(T.x, T.y - bH - 1);
+        ctx.closePath(); ctx.fillStyle = mcd; ctx.fill();
+
+        // Armrests (small blocks at L and R vertices)
+        const aH = bH * 0.75, aW = Math.max(1.5, TW * 0.06);
+        ctx.fillStyle = mcl;
+        ctx.fillRect(L.x - aW, L.y - aH, aW, aH);
+        ctx.fillStyle = mcd;
+        ctx.fillRect(R.x, R.y - aH, aW, aH);
+
+        // Chaise: open right end (no right armrest, shorter backrest on right)
+        if (couch.shape === 'chaise') {
+          ctx.fillStyle = `rgba(0,0,0,0.18)`;
+          ctx.fillRect(R.x, R.y - aH, aW, aH); // paint over right arm
+        }
+
+        // Outline
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(T.x, T.y); ctx.lineTo(R.x, R.y);
+        ctx.lineTo(B.x, B.y); ctx.lineTo(L.x, L.y); ctx.closePath();
+        ctx.stroke();
+      }
+
       // Build render queue sorted back-to-front (painter's algorithm)
       const queue = [];
       for (let row = 0; row < GRID; row++) {
@@ -974,14 +1166,18 @@
           queue.push({ type: 'tile', col, row, depth: col + row });
         }
       }
-      for (const p of placedLamps) {
-        queue.push({ type: 'lamp', col: p.col, row: p.row, lamp: p.lamp, depth: p.col + p.row + 0.1 });
+      for (const p of placedItems) {
+        queue.push({ type: 'item', col: p.col, row: p.row, item: p.item, depth: p.col + p.row + 0.1 });
       }
       queue.sort((a, b) => a.depth - b.depth || a.col - b.col);
 
       for (const item of queue) {
         const { col, row } = item;
-        if (item.type === 'lamp') { drawIsoLamp(col, row, item.lamp); continue; }
+        if (item.type === 'item') {
+          if (item.item.type === 'lamp') drawIsoLamp(col, row, item.item);
+          else drawIsoCouch(col, row, item.item);
+          continue;
+        }
         const cell = FLOOR_PLAN[row][col];
         if (cell === 1) {
           drawWall(col, row);
@@ -990,9 +1186,9 @@
         } else {
           drawFloor(col, row);
           // Highlight placeable tiles
-          if (lampToPlace !== null && !placedLamps.some(p => p.col===col && p.row===row)) {
+          if (itemToPlace !== null && !placedItems.some(p => p.col===col && p.row===row)) {
             const { x, y } = ip(col, row);
-            const [r, g, b] = lampToPlace.color.shade;
+            const [r, g, b] = itemToPlace.color.shade;
             tilePath(x, y);
             ctx.fillStyle = `rgba(${r},${g},${b},0.22)`;
             ctx.fill();
@@ -1043,10 +1239,10 @@
         if (viewingOnly) { closePlacementView(); return; }
 
         if (FLOOR_PLAN[row][col] !== 0) return;
-        if (placedLamps.some(p => p.col === col && p.row === row)) return;
+        if (placedItems.some(p => p.col === col && p.row === row)) return;
 
-        placedLamps.push({ col, row, lamp: lampToPlace });
-        lampToPlace = null;
+        placedItems.push({ col, row, item: itemToPlace });
+        itemToPlace = null;
         document.getElementById('placement-overlay').classList.remove('show');
 
         if (funds <= 0) {
@@ -1064,7 +1260,7 @@
     function updateHUD() {
       document.getElementById('funds-val').textContent = '$' + funds;
       document.getElementById('auction-count').textContent = auctionNum;
-      document.getElementById('score-val').textContent = lampsWon;
+      document.getElementById('score-val').textContent = itemsWon;
     }
 
     function updateBidDisplay() {
@@ -1093,17 +1289,23 @@
     // ── Game logic ─────────────────────────────────────────────────────────────
     function startAuction() {
       auctionNum++;
-      currentLamp = generateLamp();
+      currentItem = generateItem();
       bidStr = '0';
       updateBidDisplay();
 
       const lotNum = String(auctionNum).padStart(3, '0');
+      const iTypeName = currentItem.type === 'couch' ? 'COUCH' : 'LAMP';
       document.getElementById('lamp-name').textContent =
-        `LOT #${lotNum} — ${currentLamp.size.toUpperCase()} ${currentLamp.color.name.toUpperCase()} ${currentLamp.shape.toUpperCase()} LAMP`;
-      document.getElementById('lamp-desc').textContent =
-        `A ${currentLamp.size} ${currentLamp.color.name} ${currentLamp.shape} lamp\nCondition: ${pick(['mint','good','fair','well-loved'])}\nEra: ${pick(['1970s','1980s','retro','neo-retro','classic'])}`;
-
-      drawLamp(currentLamp);
+        `LOT #${lotNum} — ${currentItem.size.toUpperCase()} ${currentItem.color.name.toUpperCase()} ${currentItem.shape.toUpperCase()} ${iTypeName}`;
+      if (currentItem.type === 'couch') {
+        document.getElementById('lamp-desc').textContent =
+          `A ${currentItem.size} ${currentItem.color.name} ${currentItem.shape}\nCondition: ${pick(['mint','good','fair','well-loved'])}\nStyle: ${pick(['mid-century','bohemian','modern','vintage','art deco'])}`;
+        drawCouch(currentItem);
+      } else {
+        document.getElementById('lamp-desc').textContent =
+          `A ${currentItem.size} ${currentItem.color.name} ${currentItem.shape} lamp\nCondition: ${pick(['mint','good','fair','well-loved'])}\nEra: ${pick(['1970s','1980s','retro','neo-retro','classic'])}`;
+        drawLamp(currentItem);
+      }
       updateHUD();
       document.getElementById('bid-btn').disabled = false;
       document.getElementById('pass-btn').disabled = false;
@@ -1116,7 +1318,7 @@
 
       document.getElementById('bid-btn').disabled = true;
       document.getElementById('pass-btn').disabled = true;
-      const secret = currentLamp.secretPrice;
+      const secret = currentItem.secretPrice;
       const won = bid >= secret;
 
       const title  = document.getElementById('result-title');
@@ -1125,15 +1327,19 @@
       const nextBtn  = document.getElementById('result-next');
 
       if (won) {
-        lampsWon++;
+        itemsWon++;
         funds -= bid;
         title.textContent = '🏆 WON!';
         title.style.color = '#44ff88';
+        const acquiredName = currentItem.type === 'couch'
+          ? `${currentItem.color.name} ${currentItem.shape} acquired!`
+          : 'Lamp acquired!';
         detail.innerHTML =
           `You bid <strong style="color:#ffee44">$${bid}</strong><br>` +
           `Reserve was <strong style="color:#88ffcc">$${secret}</strong><br><br>` +
-          `Lamp acquired! Remaining funds: <strong style="color:#44ffcc">$${funds}</strong>`;
-        lampToPlace = currentLamp;
+          `${acquiredName} Remaining funds: <strong style="color:#44ffcc">$${funds}</strong>`;
+        itemToPlace = currentItem;
+        placeBtn.textContent = `PLACE YOUR ${currentItem.type.toUpperCase()} »`;
         placeBtn.style.display = 'block';
         nextBtn.style.display = 'none';
       } else {
@@ -1157,12 +1363,13 @@
       startAuction();
     }
 
-    function goPlaceLamp() {
+    function goPlaceItem() {
       document.getElementById('result-overlay').classList.remove('show');
       viewingOnly = false;
-      document.getElementById('place-title').textContent = 'PLACE YOUR LAMP';
+      const ptypeName = itemToPlace.type === 'couch' ? 'COUCH' : 'LAMP';
+      document.getElementById('place-title').textContent = `PLACE YOUR ${ptypeName}`;
       document.getElementById('place-lamp-info').textContent =
-        `${lampToPlace.size} ${lampToPlace.color.name} ${lampToPlace.shape} lamp`;
+        `${itemToPlace.size} ${itemToPlace.color.name} ${itemToPlace.shape}${itemToPlace.type === 'lamp' ? ' lamp' : ''}`;
       document.getElementById('place-hint').textContent = 'Tap any open floor space';
       document.getElementById('placement-overlay').classList.add('show');
       renderFloorPlan();
@@ -1172,7 +1379,7 @@
       viewingOnly = true;
       document.getElementById('place-title').textContent = 'YOUR APARTMENT';
       document.getElementById('place-lamp-info').textContent =
-        `${lampsWon} lamp${lampsWon !== 1 ? 's' : ''} placed`;
+        `${placedItems.length} item${placedItems.length !== 1 ? 's' : ''} placed`;
       document.getElementById('place-hint').textContent = 'Tap a lamp to inspect  •  X to close';
       document.getElementById('placement-overlay').classList.add('show');
       renderFloorPlan();
@@ -1196,18 +1403,18 @@
       const detail = document.getElementById('gameover-detail');
       detail.innerHTML =
         `Auctions attended: <strong style="color:#ffcc44">${auctionNum}</strong><br>` +
-        `Lamps won: <strong style="color:#ff66cc">${lampsWon}</strong><br>` +
+        `Items won: <strong style="color:#ff66cc">${itemsWon}</strong><br>` +
         `Final funds: <strong style="color:#44ffcc">$${funds}</strong><br><br>` +
-        `${lampsWon === 0 ? 'No lamps today…' : lampsWon < 3 ? 'A humble collection!' : lampsWon < 6 ? 'Impressive haul!' : 'Master collector!'}`;
+        `${itemsWon === 0 ? 'Nothing today…' : itemsWon < 3 ? 'A humble collection!' : itemsWon < 6 ? 'Impressive haul!' : 'Master collector!'}`;
       document.getElementById('gameover-overlay').classList.add('show');
     }
 
     function restartGame() {
       funds = STARTING_FUNDS;
       auctionNum = 0;
-      lampsWon = 0;
-      placedLamps = [];
-      lampToPlace = null;
+      itemsWon = 0;
+      placedItems = [];
+      itemToPlace = null;
       viewingOnly = false;
       document.getElementById('gameover-overlay').classList.remove('show');
       startAuction();
