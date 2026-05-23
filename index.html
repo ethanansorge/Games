@@ -634,20 +634,21 @@
     // ── Isometric floor plan ───────────────────────────────────────────────────
     function floorParams() {
       const maxW = Math.min(window.innerWidth - 32, 360);
-      let TW = Math.floor(maxW / GRID / 2) * 2; // even number
+      let TW = Math.floor(maxW / GRID / 2) * 2;
       TW = Math.max(20, Math.min(TW, 32));
       const TH = TW / 2;
-      const WH = Math.round(TW * 0.85); // wall face height
-      return { TW, TH, WH };
+      const WH = TW;        // Sims-style: wall height equals tile width
+      const CAP = Math.max(2, Math.round(TW * 0.08)); // faux wall cross-section cap
+      return { TW, TH, WH, CAP };
     }
 
     function renderFloorPlan() {
-      const { TW, TH, WH } = floorParams();
-      const PAD     = TW / 2; // left/right padding (half tile)
+      const { TW, TH, WH, CAP } = floorParams();
+      const PAD     = TW / 2;
       const PAD_TOP = 4;
 
       const canvasW = GRID * TW;
-      const canvasH = PAD_TOP + (GRID - 1) * TH + TH + WH + 6;
+      const canvasH = PAD_TOP + (GRID - 1) * TH + TH + WH + CAP + 8;
 
       const canvas = document.getElementById('floor-canvas');
       canvas.width  = canvasW;
@@ -658,7 +659,6 @@
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvasW, canvasH);
 
-      // Isometric position: returns the TOP vertex of a tile diamond
       function ip(col, row) {
         return {
           x: PAD + (col - row + GRID - 1) * TW / 2,
@@ -666,71 +666,125 @@
         };
       }
 
-      function drawFloor(col, row) {
-        const { x, y } = ip(col, row);
+      // Which room a floor tile belongs to, for material colours
+      function roomOf(col, row) {
+        if (col >= 1 && col <= 4 && row >= 1 && row <= 5) return 'bedroom';
+        if (col >= 6 && col <= 10 && row >= 1 && row <= 10) return 'living';
+        if (col >= 1 && col <= 4 && row >= 7 && row <= 10) return 'kitchen';
+        return 'hall';
+      }
+
+      function tilePath(x, y) {
         ctx.beginPath();
         ctx.moveTo(x,       y);
         ctx.lineTo(x+TW/2,  y+TH/2);
         ctx.lineTo(x,       y+TH);
         ctx.lineTo(x-TW/2,  y+TH/2);
         ctx.closePath();
-        ctx.fillStyle = (col + row) % 2 === 0 ? '#c8b89e' : '#b8a88e';
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.13)';
+      }
+
+      function drawFloor(col, row) {
+        const { x, y } = ip(col, row);
+        const even = (col + row) % 2 === 0;
+        const room = roomOf(col, row);
+
+        // Room-specific flooring materials
+        if (room === 'bedroom') {
+          // Soft carpet — warm dusty rose
+          tilePath(x, y);
+          ctx.fillStyle = even ? '#d4b4a4' : '#c8a898';
+          ctx.fill();
+        } else if (room === 'living') {
+          // Hardwood planks — warm oak tones
+          tilePath(x, y);
+          ctx.fillStyle = even ? '#c49040' : '#b88034';
+          ctx.fill();
+          // Suggest plank grain with a thin diagonal stroke inside the tile
+          ctx.save();
+          ctx.clip();
+          ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+          ctx.lineWidth = 0.7;
+          ctx.beginPath();
+          ctx.moveTo(x - TW*0.15, y + TH*0.2);
+          ctx.lineTo(x + TW*0.15, y + TH*0.8);
+          ctx.stroke();
+          ctx.restore();
+        } else if (room === 'kitchen') {
+          // Light ceramic tile — cool off-white
+          tilePath(x, y);
+          ctx.fillStyle = even ? '#d8d4bc' : '#ccc8b0';
+          ctx.fill();
+        } else {
+          // Transition / hall
+          tilePath(x, y);
+          ctx.fillStyle = even ? '#c8b89e' : '#b8a88e';
+          ctx.fill();
+        }
+
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
         ctx.lineWidth = 0.5;
+        tilePath(x, y);
         ctx.stroke();
       }
 
       function drawDoor(col, row) {
         const { x, y } = ip(col, row);
-        ctx.beginPath();
-        ctx.moveTo(x,       y);
-        ctx.lineTo(x+TW/2,  y+TH/2);
-        ctx.lineTo(x,       y+TH);
-        ctx.lineTo(x-TW/2,  y+TH/2);
-        ctx.closePath();
-        ctx.fillStyle = '#9a7a50';
+        // Warm wood threshold
+        tilePath(x, y);
+        ctx.fillStyle = '#a08860';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        // Centre threshold mark
+        ctx.strokeStyle = 'rgba(60,40,20,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, y + TH*0.25);
+        ctx.lineTo(x, y + TH*0.75);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
         ctx.lineWidth = 0.5;
+        tilePath(x, y);
         ctx.stroke();
       }
 
       function drawWall(col, row) {
         const { x, y } = ip(col, row);
-        const brickH = Math.round(TH * 0.75);
 
-        // Top face
-        ctx.beginPath();
-        ctx.moveTo(x,       y);
-        ctx.lineTo(x+TW/2,  y+TH/2);
-        ctx.lineTo(x,       y+TH);
-        ctx.lineTo(x-TW/2,  y+TH/2);
-        ctx.closePath();
-        ctx.fillStyle = '#7a6e5c';
+        // Top face — dark roof/top-of-wall view
+        tilePath(x, y);
+        ctx.fillStyle = '#5c5040';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
         ctx.lineWidth = 0.5;
         ctx.stroke();
 
-        // Left face (lit)
+        // ── Left face (lit — interior plaster) ──
         ctx.beginPath();
         ctx.moveTo(x-TW/2,  y+TH/2);
         ctx.lineTo(x,        y+TH);
         ctx.lineTo(x,        y+TH+WH);
         ctx.lineTo(x-TW/2,  y+TH/2+WH);
         ctx.closePath();
-        ctx.fillStyle = '#d4bc9e';
+        ctx.fillStyle = '#edddc8';
         ctx.fill();
-        for (let b = brickH; b < WH; b += brickH) {
-          ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-          ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          ctx.moveTo(x-TW/2, y+TH/2+b);
-          ctx.lineTo(x,      y+TH+b);
-          ctx.stroke();
-        }
-        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        // Sims cross-section cap at top (dark wall thickness reveal)
+        ctx.beginPath();
+        ctx.moveTo(x-TW/2,  y+TH/2);
+        ctx.lineTo(x,        y+TH);
+        ctx.lineTo(x,        y+TH+CAP);
+        ctx.lineTo(x-TW/2,  y+TH/2+CAP);
+        ctx.closePath();
+        ctx.fillStyle = '#28200e';
+        ctx.fill();
+        // Baseboard at bottom
+        ctx.beginPath();
+        ctx.moveTo(x-TW/2,  y+TH/2+WH-CAP);
+        ctx.lineTo(x,        y+TH+WH-CAP);
+        ctx.lineTo(x,        y+TH+WH);
+        ctx.lineTo(x-TW/2,  y+TH/2+WH);
+        ctx.closePath();
+        ctx.fillStyle = '#c8b898';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.18)';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(x-TW/2,  y+TH/2);
@@ -740,24 +794,34 @@
         ctx.closePath();
         ctx.stroke();
 
-        // Right face (shadow)
+        // ── Right face (shadow — interior plaster, darker) ──
         ctx.beginPath();
         ctx.moveTo(x,        y+TH);
         ctx.lineTo(x+TW/2,  y+TH/2);
         ctx.lineTo(x+TW/2,  y+TH/2+WH);
         ctx.lineTo(x,        y+TH+WH);
         ctx.closePath();
-        ctx.fillStyle = '#9a7e64';
+        ctx.fillStyle = '#d8c4a8';
         ctx.fill();
-        for (let b = brickH; b < WH; b += brickH) {
-          ctx.strokeStyle = 'rgba(0,0,0,0.08)';
-          ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          ctx.moveTo(x,      y+TH+b);
-          ctx.lineTo(x+TW/2, y+TH/2+b);
-          ctx.stroke();
-        }
-        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+        // Cap
+        ctx.beginPath();
+        ctx.moveTo(x,        y+TH);
+        ctx.lineTo(x+TW/2,  y+TH/2);
+        ctx.lineTo(x+TW/2,  y+TH/2+CAP);
+        ctx.lineTo(x,        y+TH+CAP);
+        ctx.closePath();
+        ctx.fillStyle = '#28200e';
+        ctx.fill();
+        // Baseboard
+        ctx.beginPath();
+        ctx.moveTo(x,        y+TH+WH-CAP);
+        ctx.lineTo(x+TW/2,  y+TH/2+WH-CAP);
+        ctx.lineTo(x+TW/2,  y+TH/2+WH);
+        ctx.lineTo(x,        y+TH+WH);
+        ctx.closePath();
+        ctx.fillStyle = '#b8a888';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         ctx.moveTo(x,        y+TH);
@@ -768,48 +832,241 @@
         ctx.stroke();
       }
 
+      // ── Per-shape isometric lamp drawing ──────────────────────────────────
       function drawIsoLamp(col, row, lamp) {
         const { x, y } = ip(col, row);
         const [r, g, b] = lamp.color.shade;
         const cx = x;
-        const cy = y + TH / 2; // centre of tile diamond
-        const lampH  = Math.round(TH * 1.8);
-        const shadeR = Math.max(3, Math.round(TW * 0.14));
+        const cy = y + TH / 2;   // screen centre of tile diamond
+        const mc = `rgb(${r},${g},${b})`;
+        const lc = `rgb(${Math.min(255,r+90)},${Math.min(255,g+80)},${Math.min(255,b+55)})`;
 
-        // Pool of light on floor
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, TW * 0.42);
-        grad.addColorStop(0, `rgba(${r},${g},${b},0.4)`);
-        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
-        ctx.fillStyle = grad;
+        // Light pool on floor (all types)
+        const poolR = TW * 0.38;
+        const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, poolR);
+        grd.addColorStop(0, `rgba(${Math.min(255,r+80)},${Math.min(255,g+80)},${Math.min(255,b+40)},0.55)`);
+        grd.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = grd;
         ctx.beginPath();
-        ctx.ellipse(cx, cy, TW * 0.42, TH * 0.42, 0, 0, Math.PI * 2);
+        ctx.ellipse(cx, cy, poolR, poolR * 0.45, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Stem
-        ctx.strokeStyle = '#c0b8a8';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx, cy - lampH);
-        ctx.stroke();
-
-        // Shade with glow
+        const fullH = WH * 0.74; // floor lamp reaches ~74 % of wall height
         ctx.save();
-        ctx.shadowColor = `rgb(${r},${g},${b})`;
-        ctx.shadowBlur   = shadeR * 3;
-        ctx.beginPath();
-        ctx.moveTo(cx,         cy - lampH - shadeR * 0.6);
-        ctx.lineTo(cx+shadeR,  cy - lampH);
-        ctx.lineTo(cx,         cy - lampH + shadeR * 0.6);
-        ctx.lineTo(cx-shadeR,  cy - lampH);
-        ctx.closePath();
-        ctx.fillStyle = `rgb(${Math.min(255,r+90)},${Math.min(255,g+80)},${Math.min(255,b+55)})`;
-        ctx.fill();
-        // Bright bulb
-        ctx.beginPath();
-        ctx.arc(cx, cy - lampH, Math.max(1.5, shadeR * 0.28), 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,252,220,0.95)';
-        ctx.fill();
+
+        if (lamp.shape === 'floor') {
+          const h  = fullH;
+          const sw = TW * 0.24;  // shade half-width
+          const sh = TW * 0.12;  // shade half-height
+          // Foot disc
+          ctx.fillStyle = '#686868';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, TW*0.07, TW*0.035, 0, 0, Math.PI*2);
+          ctx.fill();
+          // Pole
+          ctx.strokeStyle = '#b8b0a0';
+          ctx.lineWidth = Math.max(1, TW * 0.052);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - TW*0.025);
+          ctx.lineTo(cx, cy - h + sh);
+          ctx.stroke();
+          // Inverted trapezoid shade
+          ctx.shadowColor = mc;
+          ctx.shadowBlur  = sw * 2.2;
+          ctx.beginPath();
+          ctx.moveTo(cx - sw*0.42, cy - h - sh*0.55);
+          ctx.lineTo(cx + sw*0.42, cy - h - sh*0.55);
+          ctx.lineTo(cx + sw,      cy - h + sh);
+          ctx.lineTo(cx - sw,      cy - h + sh);
+          ctx.closePath();
+          ctx.fillStyle = mc;
+          ctx.fill();
+          // Shade inner highlight
+          ctx.shadowBlur = 0;
+          ctx.beginPath();
+          ctx.moveTo(cx - sw*0.32, cy - h - sh*0.45);
+          ctx.lineTo(cx + sw*0.32, cy - h - sh*0.45);
+          ctx.lineTo(cx + sw*0.72, cy - h + sh*0.75);
+          ctx.lineTo(cx - sw*0.72, cy - h + sh*0.75);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(255,252,215,0.22)';
+          ctx.fill();
+          // Bulb
+          ctx.beginPath();
+          ctx.arc(cx, cy - h + sh*0.7, Math.max(1.5, TW*0.048), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,250,200,0.93)';
+          ctx.fill();
+
+        } else if (lamp.shape === 'table') {
+          const h  = fullH * 0.50;
+          const sw = TW * 0.30;
+          const sh = sw * 0.46;
+          // Wide base
+          ctx.fillStyle = '#888';
+          ctx.beginPath();
+          ctx.ellipse(cx, cy, TW*0.12, TW*0.06, 0, 0, Math.PI*2);
+          ctx.fill();
+          // Short stem
+          ctx.strokeStyle = '#b8b0a0';
+          ctx.lineWidth = Math.max(1, TW * 0.052);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - TW*0.04);
+          ctx.lineTo(cx, cy - h * 0.42);
+          ctx.stroke();
+          // Dome shade
+          const domeTop = cy - h;
+          ctx.shadowColor = mc;
+          ctx.shadowBlur  = sw * 1.6;
+          ctx.beginPath();
+          ctx.arc(cx, domeTop + sh*0.28, sw, Math.PI, 0);
+          ctx.lineTo(cx + sw, domeTop + sh * 1.05);
+          ctx.lineTo(cx - sw, domeTop + sh * 1.05);
+          ctx.closePath();
+          ctx.fillStyle = mc;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // Inner glow
+          ctx.beginPath();
+          ctx.arc(cx, domeTop + sh*0.28, sw * 0.68, Math.PI, 0);
+          ctx.lineTo(cx + sw*0.68, domeTop + sh * 0.95);
+          ctx.lineTo(cx - sw*0.68, domeTop + sh * 0.95);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(255,252,215,0.2)';
+          ctx.fill();
+          // Bulb
+          ctx.beginPath();
+          ctx.arc(cx, domeTop + sh*0.82, Math.max(1.5, TW*0.055), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,250,200,0.93)';
+          ctx.fill();
+
+        } else if (lamp.shape === 'pendant') {
+          const ceilY = cy - WH * 0.88;  // implied ceiling height
+          const hangY = cy - fullH * 0.22;
+          const sw    = TW * 0.2;
+          const sh    = TW * 0.15;
+          // Cord
+          ctx.strokeStyle = '#888';
+          ctx.lineWidth = Math.max(1, TW * 0.036);
+          ctx.beginPath();
+          ctx.moveTo(cx, ceilY);
+          ctx.lineTo(cx, hangY - sh * 0.25);
+          ctx.stroke();
+          // Bell shade (bezier curves for organic shape)
+          ctx.shadowColor = mc;
+          ctx.shadowBlur  = sw * 2.2;
+          ctx.beginPath();
+          ctx.moveTo(cx - sw*0.22, hangY - sh*0.25);
+          ctx.bezierCurveTo(cx - sw*0.22, hangY + sh*0.45, cx - sw, hangY + sh*0.85, cx - sw, hangY + sh*1.35);
+          ctx.lineTo(cx + sw, hangY + sh*1.35);
+          ctx.bezierCurveTo(cx + sw, hangY + sh*0.85, cx + sw*0.22, hangY + sh*0.45, cx + sw*0.22, hangY - sh*0.25);
+          ctx.closePath();
+          ctx.fillStyle = mc;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // Rim highlight
+          ctx.strokeStyle = lc;
+          ctx.lineWidth = Math.max(1, TW * 0.036);
+          ctx.beginPath();
+          ctx.moveTo(cx - sw, hangY + sh*1.35);
+          ctx.lineTo(cx + sw, hangY + sh*1.35);
+          ctx.stroke();
+          // Bulb
+          ctx.beginPath();
+          ctx.arc(cx, hangY + sh*0.5, Math.max(1.5, TW*0.052), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,250,200,0.93)';
+          ctx.fill();
+
+        } else if (lamp.shape === 'desk') {
+          const h   = fullH * 0.58;
+          const off = TW * 0.13;
+          const sw  = TW * 0.145;
+          const sh  = TW * 0.09;
+          // Base
+          ctx.fillStyle = '#888';
+          ctx.beginPath();
+          ctx.ellipse(cx + off, cy, TW*0.09, TW*0.045, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.strokeStyle = '#b8b0a0';
+          ctx.lineWidth = Math.max(1, TW * 0.048);
+          // Vertical stem
+          ctx.beginPath();
+          ctx.moveTo(cx + off, cy);
+          ctx.lineTo(cx + off, cy - h * 0.52);
+          ctx.stroke();
+          // Angled arm
+          ctx.lineWidth = Math.max(1, TW * 0.042);
+          ctx.beginPath();
+          ctx.moveTo(cx + off, cy - h * 0.52);
+          ctx.lineTo(cx - off * 0.75, cy - h);
+          ctx.stroke();
+          // Directed shade
+          const shX = cx - off * 0.75;
+          const shY = cy - h;
+          ctx.shadowColor = mc;
+          ctx.shadowBlur  = sw * 2;
+          ctx.beginPath();
+          ctx.moveTo(shX - sw,      shY + sh*0.62);
+          ctx.lineTo(shX + sw,      shY + sh*0.62);
+          ctx.lineTo(shX + sw*0.52, shY - sh*0.62);
+          ctx.lineTo(shX - sw*0.52, shY - sh*0.62);
+          ctx.closePath();
+          ctx.fillStyle = mc;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // Bulb
+          ctx.beginPath();
+          ctx.arc(shX, shY + sh*0.38, Math.max(1.2, TW*0.042), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,250,200,0.93)';
+          ctx.fill();
+
+        } else { // arc
+          const h    = fullH;
+          const bOff = TW * 0.14;
+          const sw   = TW * 0.22;
+          const sh   = TW * 0.11;
+          // Heavy two-tier base
+          ctx.fillStyle = '#666';
+          ctx.beginPath();
+          ctx.ellipse(cx + bOff, cy, TW*0.13, TW*0.065, 0, 0, Math.PI*2);
+          ctx.fill();
+          ctx.fillStyle = '#888';
+          ctx.beginPath();
+          ctx.ellipse(cx + bOff, cy - TW*0.04, TW*0.09, TW*0.045, 0, 0, Math.PI*2);
+          ctx.fill();
+          // Tall pole
+          ctx.strokeStyle = '#b8b0a0';
+          ctx.lineWidth = Math.max(1, TW * 0.052);
+          ctx.beginPath();
+          ctx.moveTo(cx + bOff, cy);
+          ctx.lineTo(cx + bOff, cy - h * 0.88);
+          ctx.stroke();
+          // Sweeping arc arm
+          ctx.lineWidth = Math.max(1, TW * 0.042);
+          ctx.beginPath();
+          ctx.moveTo(cx + bOff, cy - h * 0.88);
+          ctx.quadraticCurveTo(cx + bOff, cy - h * 1.06, cx - sw * 0.58, cy - h * 0.78);
+          ctx.stroke();
+          // Shade at arc end
+          const aX = cx - sw * 0.58;
+          const aY = cy - h * 0.78;
+          ctx.shadowColor = mc;
+          ctx.shadowBlur  = sw * 2;
+          ctx.beginPath();
+          ctx.moveTo(aX - sw*0.38, aY - sh*0.55);
+          ctx.lineTo(aX + sw*0.38, aY - sh*0.55);
+          ctx.lineTo(aX + sw,      aY + sh*0.55);
+          ctx.lineTo(aX - sw,      aY + sh*0.55);
+          ctx.closePath();
+          ctx.fillStyle = mc;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // Bulb
+          ctx.beginPath();
+          ctx.arc(aX, aY + sh*0.28, Math.max(1.5, TW*0.052), 0, Math.PI*2);
+          ctx.fillStyle = 'rgba(255,250,200,0.93)';
+          ctx.fill();
+        }
+
         ctx.restore();
       }
 
@@ -827,10 +1084,7 @@
 
       for (const item of queue) {
         const { col, row } = item;
-        if (item.type === 'lamp') {
-          drawIsoLamp(col, row, item.lamp);
-          continue;
-        }
+        if (item.type === 'lamp') { drawIsoLamp(col, row, item.lamp); continue; }
         const cell = FLOOR_PLAN[row][col];
         if (cell === 1) {
           drawWall(col, row);
@@ -838,27 +1092,21 @@
           drawDoor(col, row);
         } else {
           drawFloor(col, row);
-          // Colour-tint valid placement cells when in placement mode
+          // Highlight placeable tiles
           if (lampToPlace !== null && !placedLamps.some(p => p.col===col && p.row===row)) {
             const { x, y } = ip(col, row);
             const [r, g, b] = lampToPlace.color.shade;
-            ctx.beginPath();
-            ctx.moveTo(x,       y);
-            ctx.lineTo(x+TW/2,  y+TH/2);
-            ctx.lineTo(x,       y+TH);
-            ctx.lineTo(x-TW/2,  y+TH/2);
-            ctx.closePath();
+            tilePath(x, y);
             ctx.fillStyle = `rgba(${r},${g},${b},0.22)`;
             ctx.fill();
           }
         }
       }
 
-      // Room labels drawn flat over the floor
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle    = 'rgba(60,44,28,0.55)';
-      ctx.font         = `bold ${Math.max(7, Math.round(TW * 0.28))}px monospace`;
+      // Room labels
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(55,40,24,0.5)';
+      ctx.font = `bold ${Math.max(7, Math.round(TW * 0.27))}px monospace`;
       const br = ip(2, 3); ctx.fillText('BEDROOM', br.x, br.y + TH/2);
       const lr = ip(8, 4); ctx.fillText('LIVING',  lr.x, lr.y + TH/2 - 6);
                            ctx.fillText('ROOM',     lr.x, lr.y + TH/2 + 5);
@@ -885,7 +1133,7 @@
         const sy = (clientY - rect.top)  * (canvas.height / rect.height);
 
         // Inverse isometric transform
-        const { TW, TH } = floorParams();
+        const { TW, TH } = floorParams(); // CAP not needed for hit-testing
         const a   = sx - TW / 2;            // remove PAD
         const b   = sy - 4;                  // remove PAD_TOP
         const u   = 2 * a / TW - (GRID - 1); // = col - row
