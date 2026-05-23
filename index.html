@@ -631,98 +631,238 @@
       [1,1,1,1,1,1,1,1,1,1,1,1],
     ];
 
-    // Fit canvas to available screen width
-    function floorCellSize() {
-      const maxW = Math.min(window.innerWidth - 32, 288);
-      return Math.floor(maxW / GRID);
+    // ── Isometric floor plan ───────────────────────────────────────────────────
+    function floorParams() {
+      const maxW = Math.min(window.innerWidth - 32, 360);
+      let TW = Math.floor(maxW / GRID / 2) * 2; // even number
+      TW = Math.max(20, Math.min(TW, 32));
+      const TH = TW / 2;
+      const WH = Math.round(TW * 0.85); // wall face height
+      return { TW, TH, WH };
     }
 
     function renderFloorPlan() {
-      const cs = floorCellSize();
+      const { TW, TH, WH } = floorParams();
+      const PAD     = TW / 2; // left/right padding (half tile)
+      const PAD_TOP = 4;
+
+      const canvasW = GRID * TW;
+      const canvasH = PAD_TOP + (GRID - 1) * TH + TH + WH + 6;
+
       const canvas = document.getElementById('floor-canvas');
-      const size = cs * GRID;
-      canvas.width = size;
-      canvas.height = size;
-      canvas.style.width  = size + 'px';
-      canvas.style.height = size + 'px';
+      canvas.width  = canvasW;
+      canvas.height = canvasH;
+      canvas.style.width  = canvasW + 'px';
+      canvas.style.height = canvasH + 'px';
 
       const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvasW, canvasH);
 
+      // Isometric position: returns the TOP vertex of a tile diamond
+      function ip(col, row) {
+        return {
+          x: PAD + (col - row + GRID - 1) * TW / 2,
+          y: PAD_TOP + (col + row) * TH / 2,
+        };
+      }
+
+      function drawFloor(col, row) {
+        const { x, y } = ip(col, row);
+        ctx.beginPath();
+        ctx.moveTo(x,       y);
+        ctx.lineTo(x+TW/2,  y+TH/2);
+        ctx.lineTo(x,       y+TH);
+        ctx.lineTo(x-TW/2,  y+TH/2);
+        ctx.closePath();
+        ctx.fillStyle = (col + row) % 2 === 0 ? '#c8b89e' : '#b8a88e';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.13)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      function drawDoor(col, row) {
+        const { x, y } = ip(col, row);
+        ctx.beginPath();
+        ctx.moveTo(x,       y);
+        ctx.lineTo(x+TW/2,  y+TH/2);
+        ctx.lineTo(x,       y+TH);
+        ctx.lineTo(x-TW/2,  y+TH/2);
+        ctx.closePath();
+        ctx.fillStyle = '#9a7a50';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      function drawWall(col, row) {
+        const { x, y } = ip(col, row);
+        const brickH = Math.round(TH * 0.75);
+
+        // Top face
+        ctx.beginPath();
+        ctx.moveTo(x,       y);
+        ctx.lineTo(x+TW/2,  y+TH/2);
+        ctx.lineTo(x,       y+TH);
+        ctx.lineTo(x-TW/2,  y+TH/2);
+        ctx.closePath();
+        ctx.fillStyle = '#7a6e5c';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+
+        // Left face (lit)
+        ctx.beginPath();
+        ctx.moveTo(x-TW/2,  y+TH/2);
+        ctx.lineTo(x,        y+TH);
+        ctx.lineTo(x,        y+TH+WH);
+        ctx.lineTo(x-TW/2,  y+TH/2+WH);
+        ctx.closePath();
+        ctx.fillStyle = '#d4bc9e';
+        ctx.fill();
+        for (let b = brickH; b < WH; b += brickH) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x-TW/2, y+TH/2+b);
+          ctx.lineTo(x,      y+TH+b);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x-TW/2,  y+TH/2);
+        ctx.lineTo(x,        y+TH);
+        ctx.lineTo(x,        y+TH+WH);
+        ctx.lineTo(x-TW/2,  y+TH/2+WH);
+        ctx.closePath();
+        ctx.stroke();
+
+        // Right face (shadow)
+        ctx.beginPath();
+        ctx.moveTo(x,        y+TH);
+        ctx.lineTo(x+TW/2,  y+TH/2);
+        ctx.lineTo(x+TW/2,  y+TH/2+WH);
+        ctx.lineTo(x,        y+TH+WH);
+        ctx.closePath();
+        ctx.fillStyle = '#9a7e64';
+        ctx.fill();
+        for (let b = brickH; b < WH; b += brickH) {
+          ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(x,      y+TH+b);
+          ctx.lineTo(x+TW/2, y+TH/2+b);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.28)';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x,        y+TH);
+        ctx.lineTo(x+TW/2,  y+TH/2);
+        ctx.lineTo(x+TW/2,  y+TH/2+WH);
+        ctx.lineTo(x,        y+TH+WH);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      function drawIsoLamp(col, row, lamp) {
+        const { x, y } = ip(col, row);
+        const [r, g, b] = lamp.color.shade;
+        const cx = x;
+        const cy = y + TH / 2; // centre of tile diamond
+        const lampH  = Math.round(TH * 1.8);
+        const shadeR = Math.max(3, Math.round(TW * 0.14));
+
+        // Pool of light on floor
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, TW * 0.42);
+        grad.addColorStop(0, `rgba(${r},${g},${b},0.4)`);
+        grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(cx, cy, TW * 0.42, TH * 0.42, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Stem
+        ctx.strokeStyle = '#c0b8a8';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy - lampH);
+        ctx.stroke();
+
+        // Shade with glow
+        ctx.save();
+        ctx.shadowColor = `rgb(${r},${g},${b})`;
+        ctx.shadowBlur   = shadeR * 3;
+        ctx.beginPath();
+        ctx.moveTo(cx,         cy - lampH - shadeR * 0.6);
+        ctx.lineTo(cx+shadeR,  cy - lampH);
+        ctx.lineTo(cx,         cy - lampH + shadeR * 0.6);
+        ctx.lineTo(cx-shadeR,  cy - lampH);
+        ctx.closePath();
+        ctx.fillStyle = `rgb(${Math.min(255,r+90)},${Math.min(255,g+80)},${Math.min(255,b+55)})`;
+        ctx.fill();
+        // Bright bulb
+        ctx.beginPath();
+        ctx.arc(cx, cy - lampH, Math.max(1.5, shadeR * 0.28), 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(255,252,220,0.95)';
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Build render queue sorted back-to-front (painter's algorithm)
+      const queue = [];
       for (let row = 0; row < GRID; row++) {
         for (let col = 0; col < GRID; col++) {
-          const x = col * cs;
-          const y = row * cs;
-          const cell = FLOOR_PLAN[row][col];
-
-          if (cell === 1) {
-            // Wall — two-tone brick look
-            ctx.fillStyle = '#2a2a44';
-            ctx.fillRect(x, y, cs, cs);
-            ctx.fillStyle = '#1e1e38';
-            ctx.fillRect(x+1, y+1, cs-2, cs-2);
-          } else if (cell === 2) {
-            // Doorway — warm wood tone
-            ctx.fillStyle = '#141424';
-            ctx.fillRect(x, y, cs, cs);
-            ctx.fillStyle = '#3a2a14';
-            ctx.fillRect(x+2, y+2, cs-4, cs-4);
-          } else {
-            // Open floor — dark tile with subtle grid
-            ctx.fillStyle = '#141424';
-            ctx.fillRect(x, y, cs, cs);
-            ctx.strokeStyle = '#1c1c30';
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(x+0.5, y+0.5, cs-1, cs-1);
-          }
+          queue.push({ type: 'tile', col, row, depth: col + row });
         }
       }
-
-      // Room labels
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(120,120,180,0.45)';
-      ctx.font = `bold ${Math.max(6, Math.round(cs*0.38))}px monospace`;
-      ctx.fillText('BEDROOM',    cs * 3,   cs * 3.5);
-      ctx.fillText('LIVING',     cs * 8.5, cs * 3.5);
-      ctx.fillText('ROOM',       cs * 8.5, cs * 4.5);
-      ctx.fillText('KITCHEN',    cs * 3,   cs * 8.5);
-
-      // Draw placed lamps
       for (const p of placedLamps) {
-        drawLampOnGrid(ctx, p.col, p.row, p.lamp, cs);
+        queue.push({ type: 'lamp', col: p.col, row: p.row, lamp: p.lamp, depth: p.col + p.row + 0.1 });
       }
+      queue.sort((a, b) => a.depth - b.depth || a.col - b.col);
 
-      // If placing, highlight valid empty cells faintly
-      if (lampToPlace !== null) {
-        const [r,g,b] = lampToPlace.color.shade;
-        ctx.fillStyle = `rgba(${r},${g},${b},0.08)`;
-        for (let row = 0; row < GRID; row++) {
-          for (let col = 0; col < GRID; col++) {
-            if (FLOOR_PLAN[row][col] === 0 && !placedLamps.some(p => p.col===col && p.row===row)) {
-              ctx.fillRect(col*cs+1, row*cs+1, cs-2, cs-2);
-            }
+      for (const item of queue) {
+        const { col, row } = item;
+        if (item.type === 'lamp') {
+          drawIsoLamp(col, row, item.lamp);
+          continue;
+        }
+        const cell = FLOOR_PLAN[row][col];
+        if (cell === 1) {
+          drawWall(col, row);
+        } else if (cell === 2) {
+          drawDoor(col, row);
+        } else {
+          drawFloor(col, row);
+          // Colour-tint valid placement cells when in placement mode
+          if (lampToPlace !== null && !placedLamps.some(p => p.col===col && p.row===row)) {
+            const { x, y } = ip(col, row);
+            const [r, g, b] = lampToPlace.color.shade;
+            ctx.beginPath();
+            ctx.moveTo(x,       y);
+            ctx.lineTo(x+TW/2,  y+TH/2);
+            ctx.lineTo(x,       y+TH);
+            ctx.lineTo(x-TW/2,  y+TH/2);
+            ctx.closePath();
+            ctx.fillStyle = `rgba(${r},${g},${b},0.22)`;
+            ctx.fill();
           }
         }
       }
-    }
 
-    function drawLampOnGrid(ctx, col, row, lamp, cs) {
-      const x = col * cs;
-      const y = row * cs;
-      const pad = Math.max(2, Math.round(cs * 0.15));
-      const [r, g, b] = lamp.color.shade;
-
-      ctx.save();
-      ctx.shadowColor = `rgb(${r},${g},${b})`;
-      ctx.shadowBlur = cs * 0.5;
-      ctx.fillStyle = `rgb(${Math.min(255,r+60)},${Math.min(255,g+60)},${Math.min(255,b+40)})`;
-      ctx.fillRect(x+pad, y+pad, cs-pad*2, cs-pad*2);
-      ctx.restore();
-
-      // Dark border
-      ctx.strokeStyle = `rgb(${Math.round(r*0.35)},${Math.round(g*0.35)},${Math.round(b*0.35)})`;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x+pad+0.5, y+pad+0.5, cs-pad*2-1, cs-pad*2-1);
+      // Room labels drawn flat over the floor
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle    = 'rgba(60,44,28,0.55)';
+      ctx.font         = `bold ${Math.max(7, Math.round(TW * 0.28))}px monospace`;
+      const br = ip(2, 3); ctx.fillText('BEDROOM', br.x, br.y + TH/2);
+      const lr = ip(8, 4); ctx.fillText('LIVING',  lr.x, lr.y + TH/2 - 6);
+                           ctx.fillText('ROOM',     lr.x, lr.y + TH/2 + 5);
+      const kr = ip(2, 8); ctx.fillText('KITCHEN', kr.x, kr.y + TH/2);
     }
 
     function initFloorCanvas() {
@@ -731,24 +871,31 @@
       function onTap(e) {
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
-        const cs = floorCellSize();
-        let cx, cy;
+        let clientX, clientY;
         if (e.touches && e.touches.length > 0) {
-          cx = e.touches[0].clientX;
-          cy = e.touches[0].clientY;
+          clientX = e.touches[0].clientX;
+          clientY = e.touches[0].clientY;
         } else {
-          cx = e.clientX;
-          cy = e.clientY;
+          clientX = e.clientX;
+          clientY = e.clientY;
         }
-        const col = Math.floor((cx - rect.left) / (rect.width  / GRID));
-        const row = Math.floor((cy - rect.top)  / (rect.height / GRID));
+
+        // Convert CSS pixels → canvas pixels
+        const sx = (clientX - rect.left) * (canvas.width  / rect.width);
+        const sy = (clientY - rect.top)  * (canvas.height / rect.height);
+
+        // Inverse isometric transform
+        const { TW, TH } = floorParams();
+        const a   = sx - TW / 2;            // remove PAD
+        const b   = sy - 4;                  // remove PAD_TOP
+        const u   = 2 * a / TW - (GRID - 1); // = col - row
+        const v   = 2 * b / TH;              // = col + row
+        const col = Math.floor((u + v) / 2);
+        const row = Math.floor((v - u) / 2);
 
         if (row < 0 || row >= GRID || col < 0 || col >= GRID) return;
 
-        if (viewingOnly) {
-          closePlacementView();
-          return;
-        }
+        if (viewingOnly) { closePlacementView(); return; }
 
         if (FLOOR_PLAN[row][col] !== 0) return;
         if (placedLamps.some(p => p.col === col && p.row === row)) return;
