@@ -202,6 +202,22 @@
     #bid-btn:active { background: #336633; }
     #bid-btn:disabled { background: #1a1a1a; border-color: #333; color: #555; cursor: not-allowed; }
 
+    #pass-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: transparent;
+      border: 1px solid #443;
+      border-radius: 6px;
+      color: #665544;
+      font-size: 0.75rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 3px;
+      cursor: pointer;
+    }
+    #pass-btn:active { background: #1a1a0a; color: #998866; }
+    #pass-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
     /* ── Result overlay ── */
     #result-overlay {
       display: none;
@@ -420,6 +436,7 @@
       <button class="num-btn del" onclick="numDel()">DEL</button>
     </div>
     <button id="bid-btn" onclick="placeBid()">PLACE BID</button>
+    <button id="pass-btn" onclick="passAuction()">PASS</button>
   </div>
 
   <!-- Result overlay -->
@@ -793,6 +810,7 @@
       drawLamp(currentLamp);
       updateHUD();
       document.getElementById('bid-btn').disabled = false;
+      document.getElementById('pass-btn').disabled = false;
     }
 
     function placeBid() {
@@ -801,6 +819,7 @@
       if (bid > funds) { bidStr = String(funds); updateBidDisplay(); return; }
 
       document.getElementById('bid-btn').disabled = true;
+      document.getElementById('pass-btn').disabled = true;
       const secret = currentLamp.secretPrice;
       const won = bid >= secret;
 
@@ -834,6 +853,12 @@
 
       document.getElementById('result-overlay').classList.add('show');
       updateHUD();
+    }
+
+    function passAuction() {
+      document.getElementById('bid-btn').disabled = true;
+      document.getElementById('pass-btn').disabled = true;
+      startAuction();
     }
 
     function goPlaceLamp() {
