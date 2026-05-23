@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>8-Bit Lamp Auction</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0a0a1a;
+      color: #e0e0ff;
+      font-family: 'Courier New', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #ffee44;
+      text-shadow: 0 0 8px #ffaa00;
+      letter-spacing: 2px;
+      margin-bottom: 4px;
+      text-align: center;
+    }
+
+    #subtitle {
+      font-size: 0.65rem;
+      color: #8888cc;
+      letter-spacing: 3px;
+      margin-bottom: 16px;
+    }
+
+    #hud {
+      display: flex;
+      gap: 20px;
+      background: #111133;
+      border: 2px solid #334;
+      border-radius: 6px;
+      padding: 10px 20px;
+      margin-bottom: 16px;
+      width: 100%;
+      max-width: 360px;
+      justify-content: space-between;
+    }
+
+    .hud-item { text-align: center; }
+    .hud-label { font-size: 0.6rem; color: #8888cc; letter-spacing: 1px; }
+    .hud-value { font-size: 1.1rem; color: #44ffcc; font-weight: bold; }
+    #auction-count { color: #ffaa44; }
+    #score-val { color: #ff66cc; }
+
+    #lamp-panel {
+      background: #111133;
+      border: 2px solid #334;
+      border-radius: 8px;
+      padding: 16px;
+      width: 100%;
+      max-width: 360px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    #lamp-name {
+      font-size: 0.75rem;
+      color: #aaaaee;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-align: center;
+    }
+
+    canvas#lamp-canvas {
+      image-rendering: pixelated;
+      width: 200px;
+      height: 200px;
+      border: 2px solid #334;
+      background: #0d0d22;
+      border-radius: 4px;
+    }
+
+    #lamp-desc {
+      margin-top: 10px;
+      font-size: 0.7rem;
+      color: #9999cc;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    #bid-panel {
+      background: #111133;
+      border: 2px solid #334;
+      border-radius: 8px;
+      padding: 16px;
+      width: 100%;
+      max-width: 360px;
+    }
+
+    #bid-label {
+      font-size: 0.7rem;
+      color: #aaaaee;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    #bid-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    #bid-display {
+      flex: 1;
+      background: #0a0a1a;
+      border: 2px solid #445;
+      border-radius: 4px;
+      padding: 10px;
+      font-size: 1.3rem;
+      color: #ffee44;
+      text-align: right;
+      font-family: 'Courier New', monospace;
+      min-width: 0;
+    }
+
+    #quick-bids {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .quick-btn {
+      background: #1a1a44;
+      border: 1px solid #446;
+      color: #aaaaff;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      cursor: pointer;
+      flex: 1;
+      min-width: 60px;
+    }
+    .quick-btn:active { background: #2a2a66; }
+
+    #numpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    .num-btn {
+      background: #1a1a3a;
+      border: 2px solid #335;
+      border-radius: 6px;
+      color: #ccccff;
+      font-size: 1.2rem;
+      font-family: 'Courier New', monospace;
+      padding: 14px 0;
+      cursor: pointer;
+      text-align: center;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .num-btn:active { background: #2a2a55; border-color: #557; }
+    .num-btn.del { color: #ff8888; font-size: 1rem; }
+    .num-btn.zero { grid-column: span 2; }
+
+    #bid-btn {
+      width: 100%;
+      padding: 14px;
+      background: #224422;
+      border: 2px solid #448844;
+      border-radius: 6px;
+      color: #88ff88;
+      font-size: 1rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      cursor: pointer;
+    }
+    #bid-btn:active { background: #336633; }
+    #bid-btn:disabled { background: #1a1a1a; border-color: #333; color: #555; cursor: not-allowed; }
+
+    #result-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      flex-direction: column;
+      gap: 16px;
+      padding: 24px;
+    }
+    #result-overlay.show { display: flex; }
+
+    #result-box {
+      background: #111133;
+      border: 3px solid #448;
+      border-radius: 12px;
+      padding: 28px 24px;
+      max-width: 320px;
+      width: 100%;
+      text-align: center;
+    }
+
+    #result-title {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+    }
+
+    #result-detail {
+      font-size: 0.8rem;
+      color: #aaaacc;
+      line-height: 1.7;
+      margin-bottom: 20px;
+    }
+
+    #result-next {
+      width: 100%;
+      padding: 14px;
+      background: #223344;
+      border: 2px solid #4488cc;
+      border-radius: 6px;
+      color: #88ccff;
+      font-size: 0.9rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      cursor: pointer;
+    }
+    #result-next:active { background: #334455; }
+
+    #gameover-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      justify-content: center;
+      align-items: center;
+      z-index: 200;
+      flex-direction: column;
+      gap: 16px;
+      padding: 24px;
+    }
+    #gameover-overlay.show { display: flex; }
+    #gameover-box {
+      background: #110011;
+      border: 3px solid #884;
+      border-radius: 12px;
+      padding: 28px 24px;
+      max-width: 320px;
+      width: 100%;
+      text-align: center;
+    }
+    #gameover-title { font-size: 1.6rem; color: #ffaa44; margin-bottom: 12px; }
+    #gameover-detail { font-size: 0.8rem; color: #bbbbaa; line-height: 1.7; margin-bottom: 20px; }
+    #restart-btn {
+      width: 100%;
+      padding: 14px;
+      background: #332200;
+      border: 2px solid #aa6600;
+      border-radius: 6px;
+      color: #ffcc44;
+      font-size: 0.9rem;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 2px;
+      cursor: pointer;
+    }
+    #restart-btn:active { background: #443300; }
+  </style>
+</head>
+<body>
+  <h1>LAMP AUCTION</h1>
+  <div id="subtitle">8-BIT EDITION</div>
+
+  <div id="hud">
+    <div class="hud-item">
+      <div class="hud-label">FUNDS</div>
+      <div class="hud-value" id="funds-val">$500</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">AUCTIONS</div>
+      <div class="hud-value" id="auction-count">0</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">LAMPS WON</div>
+      <div class="hud-value" id="score-val">0</div>
+    </div>
+  </div>
+
+  <div id="lamp-panel">
+    <div id="lamp-name">LOT #001 — MYSTERY LAMP</div>
+    <canvas id="lamp-canvas" width="32" height="32"></canvas>
+    <div id="lamp-desc"></div>
+  </div>
+
+  <div id="bid-panel">
+    <div id="bid-label">YOUR BID</div>
+    <div id="bid-row">
+      <div id="bid-display">$0</div>
+    </div>
+    <div id="quick-bids">
+      <button class="quick-btn" onclick="quickBid(10)">+$10</button>
+      <button class="quick-btn" onclick="quickBid(25)">+$25</button>
+      <button class="quick-btn" onclick="quickBid(50)">+$50</button>
+      <button class="quick-btn" onclick="quickBid(100)">+$100</button>
+    </div>
+    <div id="numpad">
+      <button class="num-btn" onclick="numInput('1')">1</button>
+      <button class="num-btn" onclick="numInput('2')">2</button>
+      <button class="num-btn" onclick="numInput('3')">3</button>
+      <button class="num-btn" onclick="numInput('4')">4</button>
+      <button class="num-btn" onclick="numInput('5')">5</button>
+      <button class="num-btn" onclick="numInput('6')">6</button>
+      <button class="num-btn" onclick="numInput('7')">7</button>
+      <button class="num-btn" onclick="numInput('8')">8</button>
+      <button class="num-btn" onclick="numInput('9')">9</button>
+      <button class="num-btn zero" onclick="numInput('0')">0</button>
+      <button class="num-btn del" onclick="numDel()">DEL</button>
+    </div>
+    <button id="bid-btn" onclick="placeBid()">PLACE BID</button>
+  </div>
+
+  <!-- Result overlay -->
+  <div id="result-overlay">
+    <div id="result-box">
+      <div id="result-title"></div>
+      <div id="result-detail"></div>
+      <button id="result-next" onclick="nextAuction()">NEXT LOT &gt;&gt;</button>
+    </div>
+  </div>
+
+  <!-- Game over overlay -->
+  <div id="gameover-overlay">
+    <div id="gameover-box">
+      <div id="gameover-title">AUCTION ENDED</div>
+      <div id="gameover-detail"></div>
+      <button id="restart-btn" onclick="restartGame()">PLAY AGAIN</button>
+    </div>
+  </div>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────────
+    const STARTING_FUNDS = 500;
+    let funds = STARTING_FUNDS;
+    let auctionNum = 0;
+    let lampsWon = 0;
+    let bidStr = '0';
+    let currentLamp = null;
+
+    // ── Lamp generation ────────────────────────────────────────────────────────
+    const SHAPES = ['floor', 'table', 'pendant', 'desk', 'arc'];
+    const SIZES  = ['tiny', 'small', 'medium', 'large', 'huge'];
+    const COLORS = [
+      { name: 'crimson',  shade: [200, 40,  40]  },
+      { name: 'amber',    shade: [220, 140, 20]  },
+      { name: 'golden',   shade: [210, 185, 30]  },
+      { name: 'jade',     shade: [30,  180, 100] },
+      { name: 'sapphire', shade: [40,  80,  210] },
+      { name: 'violet',   shade: [160, 30,  200] },
+      { name: 'ivory',    shade: [220, 215, 190] },
+      { name: 'rose',     shade: [220, 90,  150] },
+      { name: 'teal',     shade: [30,  190, 190] },
+      { name: 'silver',   shade: [170, 175, 190] },
+    ];
+
+    function rand(n) { return Math.floor(Math.random() * n); }
+    function pick(arr) { return arr[rand(arr.length)]; }
+
+    function basePrice(lamp) {
+      const sizeMult = [0.5, 0.8, 1.0, 1.4, 2.0][SIZES.indexOf(lamp.size)];
+      const shapeMult = { floor:1.2, table:1.0, pendant:1.1, desk:0.9, arc:1.5 }[lamp.shape];
+      const base = 40 + rand(80);
+      return Math.round(base * sizeMult * shapeMult);
+    }
+
+    function generateLamp() {
+      const shape = pick(SHAPES);
+      const size  = pick(SIZES);
+      const color = pick(COLORS);
+      const lamp  = { shape, size, color };
+      const minPrice = basePrice(lamp);
+      const secretPrice = Math.round(minPrice * (0.7 + Math.random() * 0.7));
+      return { shape, size, color, secretPrice };
+    }
+
+    // ── Pixel art lamp drawing ─────────────────────────────────────────────────
+    const CANVAS_SIZE = 32;
+
+    function setPixel(data, x, y, r, g, b, a=255) {
+      if (x < 0 || x >= CANVAS_SIZE || y < 0 || y >= CANVAS_SIZE) return;
+      const i = (y * CANVAS_SIZE + x) * 4;
+      data[i]=r; data[i+1]=g; data[i+2]=b; data[i+3]=a;
+    }
+
+    function fillRect(data, x, y, w, h, r, g, b, a=255) {
+      for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++)
+        setPixel(data, x+dx, y+dy, r, g, b, a);
+    }
+
+    function darker([r,g,b], f=0.55) { return [Math.round(r*f),Math.round(g*f),Math.round(b*f)]; }
+    function lighter([r,g,b], f=1.4) { return [Math.min(255,Math.round(r*f)),Math.min(255,Math.round(g*f)),Math.min(255,Math.round(b*f))]; }
+
+    function drawLamp(lamp) {
+      const canvas = document.getElementById('lamp-canvas');
+      const ctx = canvas.getContext('2d');
+      const img = ctx.createImageData(CANVAS_SIZE, CANVAS_SIZE);
+      const d = img.data;
+      const c = lamp.color.shade;
+      const dc = darker(c);
+      const lc = lighter(c);
+      const grey = [140, 140, 150];
+      const dkgrey = [80, 80, 90];
+      const glow = [Math.min(255,c[0]+60), Math.min(255,c[1]+60), Math.min(255,c[2]+40), 180];
+
+      const sizeIdx = SIZES.indexOf(lamp.size); // 0..4
+      // scale body height: tiny=small, huge=taller
+      const bodyH = 5 + sizeIdx * 2; // 5,7,9,11,13
+      const bodyW = 4 + sizeIdx;     // 4,5,6,7,8
+
+      if (lamp.shape === 'table') {
+        // shade / dome on top
+        const domeX = 16 - Math.round(bodyW*0.9);
+        const domeW = Math.round(bodyW*1.8);
+        const domeY = 10 - sizeIdx;
+        const domeH = 4 + sizeIdx;
+        fillRect(d, domeX, domeY, domeW, domeH, ...dc);
+        fillRect(d, domeX+1, domeY+1, domeW-2, domeH-2, ...c);
+        // glow bulb
+        fillRect(d, 15, domeY+domeH-1, 2, 2, ...lc);
+        // stem
+        fillRect(d, 15, domeY+domeH, 2, bodyH, ...grey);
+        // base
+        const baseW = bodyW + 2;
+        fillRect(d, 16-Math.round(baseW/2), domeY+domeH+bodyH, baseW, 2, ...dkgrey);
+        fillRect(d, 16-Math.round(baseW/2)+1, domeY+domeH+bodyH+2, baseW-2, 1, ...dkgrey);
+
+      } else if (lamp.shape === 'floor') {
+        // tall pole
+        const poleTop = 6 - sizeIdx;
+        fillRect(d, 15, poleTop, 2, 20 + sizeIdx, ...grey);
+        // shade on arm
+        const shadeY = poleTop + 1;
+        fillRect(d, 10, shadeY, 8+sizeIdx, 3+sizeIdx, ...dc);
+        fillRect(d, 11, shadeY+1, 6+sizeIdx, 1+sizeIdx, ...c);
+        // bulb glow
+        fillRect(d, 14, shadeY + 3+sizeIdx, 4, 2, ...lc);
+        // base plate
+        fillRect(d, 10, poleTop+21+sizeIdx, 12, 2, ...dkgrey);
+
+      } else if (lamp.shape === 'pendant') {
+        // cord from top
+        const cordLen = 6 + sizeIdx;
+        fillRect(d, 15, 2, 2, cordLen, ...dkgrey);
+        // cage / shade
+        const shadeY = 2 + cordLen;
+        const sw = 5 + sizeIdx;
+        const sh = 6 + sizeIdx;
+        fillRect(d, 16-sw, shadeY, sw*2, sh, ...dc);
+        fillRect(d, 16-sw+1, shadeY+1, sw*2-2, sh-2, ...c);
+        // interior glow
+        fillRect(d, 14, shadeY+2, 4, sh-4, 255, 255, 200, 200);
+        // bottom opening
+        fillRect(d, 16-sw+2, shadeY+sh, sw*2-4, 2, ...lc);
+
+      } else if (lamp.shape === 'desk') {
+        // low arm lamp
+        const baseY = 24;
+        fillRect(d, 12, baseY, 8, 2, ...dkgrey);
+        // vertical stem
+        const stemH = 8 + sizeIdx;
+        fillRect(d, 15, baseY - stemH, 2, stemH, ...grey);
+        // arm
+        const armLen = 5 + sizeIdx;
+        fillRect(d, 15, baseY - stemH, armLen, 2, ...grey);
+        // shade
+        const sx = 15 + armLen - 2;
+        const sy = baseY - stemH - 1;
+        fillRect(d, sx, sy, 6, 4, ...dc);
+        fillRect(d, sx+1, sy+1, 4, 2, ...c);
+        // beam
+        fillRect(d, sx+1, sy+4, 4, 2, ...lc);
+
+      } else { // arc
+        // tall arc pole
+        const poleBase = 28;
+        fillRect(d, 15, poleBase - 16 - sizeIdx, 2, 16+sizeIdx, ...grey);
+        // arc arm going left
+        fillRect(d, 7, poleBase - 16 - sizeIdx, 8, 2, ...grey);
+        // hanging shade
+        const hx = 5;
+        const hy = poleBase - 16 - sizeIdx + 2;
+        const hw = 6 + sizeIdx;
+        fillRect(d, hx, hy, hw, 5+sizeIdx, ...dc);
+        fillRect(d, hx+1, hy+1, hw-2, 3+sizeIdx, ...c);
+        fillRect(d, hx+1, hy+4+sizeIdx, hw-2, 2, ...lc);
+        // base
+        fillRect(d, 12, poleBase, 8, 2, ...dkgrey);
+      }
+
+      ctx.putImageData(img, 0, 0);
+    }
+
+    // ── UI helpers ─────────────────────────────────────────────────────────────
+    function updateHUD() {
+      document.getElementById('funds-val').textContent = '$' + funds;
+      document.getElementById('auction-count').textContent = auctionNum;
+      document.getElementById('score-val').textContent = lampsWon;
+    }
+
+    function updateBidDisplay() {
+      document.getElementById('bid-display').textContent = '$' + parseInt(bidStr, 10);
+    }
+
+    function numInput(ch) {
+      if (bidStr === '0') bidStr = ch;
+      else if (bidStr.length < 5) bidStr += ch;
+      updateBidDisplay();
+    }
+
+    function numDel() {
+      if (bidStr.length > 1) bidStr = bidStr.slice(0, -1);
+      else bidStr = '0';
+      updateBidDisplay();
+    }
+
+    function quickBid(amount) {
+      let v = parseInt(bidStr, 10) + amount;
+      if (v > funds) v = funds;
+      bidStr = String(v);
+      updateBidDisplay();
+    }
+
+    // ── Game logic ─────────────────────────────────────────────────────────────
+    function startAuction() {
+      auctionNum++;
+      currentLamp = generateLamp();
+      bidStr = '0';
+      updateBidDisplay();
+
+      const lotNum = String(auctionNum).padStart(3, '0');
+      document.getElementById('lamp-name').textContent =
+        `LOT #${lotNum} — ${currentLamp.size.toUpperCase()} ${currentLamp.color.name.toUpperCase()} ${currentLamp.shape.toUpperCase()} LAMP`;
+      document.getElementById('lamp-desc').textContent =
+        `A ${currentLamp.size} ${currentLamp.color.name} ${currentLamp.shape} lamp\nCondition: ${pick(['mint','good','fair','well-loved'])}\nEra: ${pick(['1970s','1980s','retro','neo-retro','classic'])}`;
+
+      drawLamp(currentLamp);
+      updateHUD();
+
+      document.getElementById('bid-btn').disabled = false;
+    }
+
+    function placeBid() {
+      const bid = parseInt(bidStr, 10);
+      if (bid <= 0) {
+        bidStr = '0';
+        updateBidDisplay();
+        return;
+      }
+      if (bid > funds) {
+        bidStr = String(funds);
+        updateBidDisplay();
+        return;
+      }
+
+      document.getElementById('bid-btn').disabled = true;
+      const secret = currentLamp.secretPrice;
+      const won = bid >= secret;
+
+      const title = document.getElementById('result-title');
+      const detail = document.getElementById('result-detail');
+
+      if (won) {
+        lampsWon++;
+        funds -= bid;
+        title.textContent = '🏆 WON!';
+        title.style.color = '#44ff88';
+        detail.innerHTML =
+          `You bid <strong style="color:#ffee44">$${bid}</strong><br>` +
+          `Reserve was <strong style="color:#88ffcc">$${secret}</strong><br><br>` +
+          `Lamp acquired! Remaining funds: <strong style="color:#44ffcc">$${funds}</strong>`;
+      } else {
+        title.textContent = '✗ OUTBID';
+        title.style.color = '#ff4444';
+        detail.innerHTML =
+          `You bid <strong style="color:#ffee44">$${bid}</strong><br>` +
+          `Reserve was <strong style="color:#ff8888">$${secret}</strong><br><br>` +
+          `Better luck next time. Funds: <strong style="color:#44ffcc">$${funds}</strong>`;
+      }
+
+      document.getElementById('result-overlay').classList.add('show');
+      updateHUD();
+    }
+
+    function nextAuction() {
+      document.getElementById('result-overlay').classList.remove('show');
+      if (funds <= 0) {
+        showGameOver();
+      } else {
+        startAuction();
+      }
+    }
+
+    function showGameOver() {
+      const detail = document.getElementById('gameover-detail');
+      detail.innerHTML =
+        `Auctions attended: <strong style="color:#ffcc44">${auctionNum}</strong><br>` +
+        `Lamps won: <strong style="color:#ff66cc">${lampsWon}</strong><br>` +
+        `Final funds: <strong style="color:#44ffcc">$${funds}</strong><br><br>` +
+        `${lampsWon === 0 ? 'No lamps today…' : lampsWon < 3 ? 'A humble collection!' : lampsWon < 6 ? 'Impressive haul!' : 'Master collector!'}`;
+      document.getElementById('gameover-overlay').classList.add('show');
+    }
+
+    function restartGame() {
+      funds = STARTING_FUNDS;
+      auctionNum = 0;
+      lampsWon = 0;
+      document.getElementById('gameover-overlay').classList.remove('show');
+      startAuction();
+    }
+
+    // ── Boot ───────────────────────────────────────────────────────────────────
+    startAuction();
+  </script>
+</body>
+</html>
